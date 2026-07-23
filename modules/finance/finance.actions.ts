@@ -15,6 +15,7 @@ import {
   EditGoalSchema,
   DeleteGoalSchema,
   GoalContributionSchema,
+  AllocateIncomeToGoalSchema,
 } from './finance.schema';
 import { revalidatePath } from 'next/cache';
 
@@ -156,4 +157,19 @@ export const addGoalContributionAction = protectedAction
     revalidatePath('/financial');
     revalidatePath('/dashboard');
     return { success: true };
+  });
+
+export const allocateIncomeToGoalAction = protectedAction
+  .schema(AllocateIncomeToGoalSchema)
+  .action(async ({ parsedInput, ctx }) => {
+    const res = await financeService.allocateIncomeToGoal(ctx.user.id, {
+      goal_id: parsedInput.goal_id,
+      income_name: parsedInput.income_name,
+      amount: parsedInput.amount,
+      reference_month: parsedInput.reference_month,
+    });
+
+    revalidatePath('/financial');
+    revalidatePath('/dashboard');
+    return { ...res };
   });

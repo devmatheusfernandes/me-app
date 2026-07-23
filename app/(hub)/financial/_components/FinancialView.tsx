@@ -8,6 +8,7 @@ import { IncomeList } from './IncomeList';
 import { GoalsList } from './GoalsList';
 import { AddExpenseSheet } from './AddExpenseSheet';
 import { EditFinancialModal } from './EditFinancialModal';
+import { AllocateIncomeModal } from './AllocateIncomeModal';
 import type { FixedExpense, Goal, Transaction } from '@/types';
 
 interface FinancialViewProps {
@@ -31,6 +32,14 @@ export function FinancialView({
     | { type: 'goal'; data: Goal }
     | null
   >(null);
+
+  const [allocatingIncomeItem, setAllocatingIncomeItem] = useState<Transaction | null>(null);
+  const [isAllocateOpen, setIsAllocateOpen] = useState(false);
+
+  const handleOpenAllocate = (inc?: Transaction) => {
+    setAllocatingIncomeItem(inc || null);
+    setIsAllocateOpen(true);
+  };
 
   return (
     <div className="p-5 pb-6">
@@ -68,6 +77,7 @@ export function FinancialView({
           selectedMonth={selectedMonth}
           onOpenAddModal={() => setIsAddModalOpen(true)}
           onEdit={(inc) => setEditingItem({ type: 'income', data: inc })}
+          onAllocateToGoal={handleOpenAllocate}
         />
       )}
 
@@ -92,6 +102,15 @@ export function FinancialView({
         item={editingItem}
         selectedMonth={selectedMonth}
         onClose={() => setEditingItem(null)}
+      />
+
+      {/* Allocate Income to Goal Modal */}
+      <AllocateIncomeModal
+        incomeItem={allocatingIncomeItem}
+        goals={goals}
+        selectedMonth={selectedMonth}
+        isOpen={isAllocateOpen}
+        onClose={() => setIsAllocateOpen(false)}
       />
     </div>
   );

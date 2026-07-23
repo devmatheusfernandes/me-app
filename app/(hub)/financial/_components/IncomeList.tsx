@@ -1,6 +1,6 @@
 'use client';
 
-import { ArrowUpRight, Plus, Pencil, Trash2 } from 'lucide-react';
+import { ArrowUpRight, Plus, Pencil, Trash2, Target } from 'lucide-react';
 import { deleteTransactionAction } from '@/modules/finance/finance.actions';
 import { formatCurrency, formatMonthYearLabel } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -11,6 +11,7 @@ interface IncomeListProps {
   selectedMonth: string;
   onOpenAddModal: () => void;
   onEdit?: (transaction: Transaction) => void;
+  onAllocateToGoal?: (transaction: Transaction) => void;
 }
 
 export function IncomeList({
@@ -18,6 +19,7 @@ export function IncomeList({
   selectedMonth,
   onOpenAddModal,
   onEdit,
+  onAllocateToGoal,
 }: IncomeListProps) {
   const incomes = transactions.filter((t) => t.type === 'income');
 
@@ -33,9 +35,19 @@ export function IncomeList({
 
   return (
     <div className="animate-in fade-in duration-200">
-      <h2 className="text-xs font-bold text-slate-500 uppercase tracking-widest mb-4">
-        Entradas de {formatMonthYearLabel(selectedMonth)}
-      </h2>
+      <div className="flex justify-between items-center mb-4">
+        <h2 className="text-xs font-bold text-slate-500 uppercase tracking-widest">
+          Entradas de {formatMonthYearLabel(selectedMonth)}
+        </h2>
+        {incomes.length > 0 && (
+          <button
+            onClick={() => onAllocateToGoal?.(incomes[0])}
+            className="flex items-center gap-1.5 text-xs font-bold text-purple-400 bg-purple-500/10 border border-purple-500/20 px-3 py-1.5 rounded-xl hover:bg-purple-500/20 active:scale-95 transition-all"
+          >
+            <Target size={14} /> Guardar em Meta
+          </button>
+        )}
+      </div>
 
       {incomes.length === 0 ? (
         <div className="bg-slate-900 rounded-2xl p-6 border border-slate-800 text-center text-xs text-slate-500 mb-5">
@@ -66,6 +78,15 @@ export function IncomeList({
                 <p className="font-bold text-sm text-emerald-400 shrink-0">
                   {formatCurrency(item.amount)}
                 </p>
+
+                {/* Allocate to Goal Button */}
+                <button
+                  onClick={() => onAllocateToGoal?.(item)}
+                  className="text-purple-400 hover:text-purple-300 p-1 transition-colors"
+                  title="Guardar em Meta"
+                >
+                  <Target size={15} />
+                </button>
 
                 {/* Edit Button */}
                 <button

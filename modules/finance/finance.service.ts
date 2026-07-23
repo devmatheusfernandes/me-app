@@ -70,6 +70,38 @@ export const financeService = {
     };
   },
 
+  async allocateIncomeToGoal(
+    userId: string,
+    input: {
+      goal_id: string;
+      income_name?: string;
+      amount: number;
+      reference_month: string;
+    }
+  ) {
+    // 1. Fetch target goal to increment current_amount
+    const goals = await financeRepository.getGoals(userId);
+    const targetGoal = goals.find((g) => g.id === input.goal_id);
+    if (!targetGoal) throw new Error('Meta/Objetivo não encontrado');
+
+    const newAmount = Number(targetGoal.current_amount || 0) + input.amount;
+    await financeRepository.updateGoalAmount(input.goal_id, newAmount);
+
+    // 2. Add an allocation expense transaction so it is deducted from free balance / unallocated income
+    const desc = input.income_name ? ` (${input.income_name})` : '';
+    await financeRepository.addTransaction({
+      user_id: userId,
+      type: 'expense',
+      name: `Alocado p/ Meta: ${targetGoal.name}${desc}`,
+      category: 'Metas',
+      amount: input.amount,
+      reference_month: input.reference_month,
+      is_fixed: false,
+    });
+
+    return { success: true, newAmount, goalName: targetGoal.name };
+  },
+
   async closeMonth(userId: string, currentMonthYear: string) {
     const currentData = await this.getDashboardData(userId, currentMonthYear);
     const nextMonthStr = getNextMonthYear(currentMonthYear);

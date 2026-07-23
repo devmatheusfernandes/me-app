@@ -63,3 +63,13 @@ export const GoalContributionSchema = z.object({
   goal_id: z.string().uuid(),
   amount: z.number().min(0.01, 'Aporte deve ser maior que zero'),
 });
+
+export const AllocateIncomeToGoalSchema = z.object({
+  goal_id: z.string().uuid('Selecione uma meta válida'),
+  income_transaction_id: z.string().uuid().optional().nullable(),
+  income_name: z.string().optional(),
+  amount: z.number().min(0.01, 'O valor a alocar deve ser maior que zero'),
+  reference_month: z.string().regex(/^\d{4}-\d{2}$/),
+});
+
+export type AllocateIncomeToGoalInput = z.input<typeof AllocateIncomeToGoalSchema>;
