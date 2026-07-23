@@ -34,7 +34,6 @@ export async function POST(req: NextRequest) {
 
     const cleanUrl = url.trim();
 
-    // Ensure valid HTTP/HTTPS URL
     if (!cleanUrl.startsWith('http://') && !cleanUrl.startsWith('https://')) {
       return NextResponse.json(
         { error: 'Link de nota fiscal inválido. Certifique-se de incluir http:// ou https://' },
@@ -42,7 +41,6 @@ export async function POST(req: NextRequest) {
       );
     }
 
-    // Perform fetch with browser User-Agent
     let response: Response;
     try {
       response = await fetch(cleanUrl, {
@@ -58,7 +56,9 @@ export async function POST(req: NextRequest) {
     } catch (fetchErr) {
       const msg = fetchErr instanceof Error ? fetchErr.message : 'Erro de conexão';
       return NextResponse.json(
-        { error: `Não foi possível acessar a SEFAZ (${msg}). Verifique sua conexão ou se a SEFAZ está acessível.` },
+        {
+          error: `Não foi possível acessar a SEFAZ (${msg}). Verifique sua conexão ou tente novamente.`,
+        },
         { status: 502 }
       );
     }
@@ -76,36 +76,78 @@ export async function POST(req: NextRequest) {
     const items: NfceScrapedItem[] = [];
 
     // ==========================================
-    // Strategy 1: SEFAZ-SC (sat.sef.sc.gov.br)
-    // Regex for single line format:
-    // "UVA BRANCA S/SEMENTE 500G (Código: 930910 ) Qtde.:1UN: UNVl. Unit.: 12,99 Vl. Total 12,99"
+    // Strategy 1: SEFAZ-SC sat.sef.sc.gov.br
+    //
+    // HTML structure confirmed from live fetch:
+    //   <tr id="Item + N">
+    //     <td>
+    //       <span class="txtTit">PRODUCT NAME</span>
+    //       <span class="RCod">(Código: 930910)</span>
+    //       <br>
+    //       <span class="Rqtd"><strong>Qtde.:</strong>1</span>
+    //       <span class="RUN"><strong>UN: </strong>UN</span>
+    //       <span class="RvlUnit"><strong>Vl. Unit.:</strong> 12,99</span>
+    //     </td>
+    //     <td class="txtTit noWrap">
+    //       Vl. Total<br>
+    //       <span class="valor">12,99</span>
+    //     </td>
+    //   </tr>
     // ==========================================
-    $('tr').each((_, el) => {
-      const text = $(el).text().replace(/\s+/g, ' ').trim();
-      const match = text.match(
-        /^(.*?)\s*\(\s*Código:\s*\d+\s*\)\s*Qtde\.:\s*([\d,.]+)\s*UN:\s*([A-Za-z]+)\s*Vl\.\s*Unit\.:\s*([\d,.]+)\s*Vl\.\s*Total\s*([\d,.]+)/i
-      );
+    $('tr[id^="Item"]').each((_, el) => {
+      const name = $(el).find('.txtTit').first().text().trim();
+      const qtyText = $(el).find('.Rqtd, .RCR').text().replace(/Qtde\.:?/i, '').trim();
+      const unitText = $(el).find('.RUN').text().replace(/UN:?/i, '').trim();
+      const unitPriceText = $(el).find('.RvlUnit').text().replace(/Vl\.?\s*Unit\.?:?/i, '').trim();
+      const totalText = $(el).find('.valor').first().text().trim();
 
-      if (match) {
+      if (name && totalText) {
         items.push({
-          name: match[1].trim(),
-          qty: parseDecimalBR(match[2]) || 1,
-          unit: match[3].toUpperCase().trim(),
-          unit_price: parseDecimalBR(match[4]),
-          total_price: parseDecimalBR(match[5]),
+          name: name.replace(/\s+/g, ' '),
+          qty: parseDecimalBR(qtyText) || 1,
+          unit: unitText.replace(/[^A-Za-z]/g, '').toUpperCase() || 'UN',
+          unit_price: parseDecimalBR(unitPriceText),
+          total_price: parseDecimalBR(totalText),
         });
       }
     });
 
     // ==========================================
-    // Strategy 2: Standard ENCAT / SP / PR / RS / RJ / MG / BA NFC-e Layout
-    // Matches #tabResult tr, .table-striped tr, table.tbl_itens tr, etc.
+    // Strategy 2: Regex fallback on full row text (any SEFAZ portal)
+    // Catches inline-formatted text like:
+    // "PRODUTO (Código: 12345) Qtde.:1UN: UNVl. Unit.: 9,99 Vl. Total 9,99"
     // ==========================================
     if (items.length === 0) {
-      $('#tabResult tr, .table-striped tr, table.tbl_itens tr, tr[id^="Item"], .produtoNota').each((_, el) => {
-        const name = $(el).find('.txtTit, .RProd, .spanItemName, .txtTopo, .borda-desenhada').first().text().trim();
-        const qtyText = $(el).find('.RCR, .qnt, .txtQty, td:contains("Qtd")').text().trim();
-        const unitText = $(el).find('.RText, .txtUn, td:contains("UN")').text().trim();
+      $('tr').each((_, el) => {
+        const text = $(el).text().replace(/\s+/g, ' ').trim();
+        const match = text.match(
+          /^(.*?)\s*\(\s*C[oó]digo:\s*\d+\s*\)\s*Qtde\.:\s*([\d,.]+)\s*UN:\s*([A-Za-z]+)\s*Vl\.\s*Unit\.:\s*([\d,.]+)\s*Vl\.\s*Total\s*([\d,.]+)/i
+        );
+        if (match) {
+          items.push({
+            name: match[1].trim(),
+            qty: parseDecimalBR(match[2]) || 1,
+            unit: match[3].toUpperCase().trim(),
+            unit_price: parseDecimalBR(match[4]),
+            total_price: parseDecimalBR(match[5]),
+          });
+        }
+      });
+    }
+
+    // ==========================================
+    // Strategy 3: Standard ENCAT table layout (SP, PR, RS, MG, RJ, BA, GO...)
+    // Uses #tabResult rows with .txtTit/.RProd for name and .valor/.vTotal for price
+    // ==========================================
+    if (items.length === 0) {
+      $('#tabResult tr, .table-striped tr, table.tbl_itens tr, tr.item').each((_, el) => {
+        const name = $(el)
+          .find('.txtTit, .RProd, .spanItemName, .borda-desenhada')
+          .first()
+          .text()
+          .trim();
+        const qtyText = $(el).find('.RCR, .qnt, .txtQty').text().trim();
+        const unitText = $(el).find('.RText, .txtUn').text().trim();
         const totalText = $(el).find('.valor, .vTotal, .vItem, .txtValor').first().text().trim();
 
         if (name && totalText) {
@@ -121,16 +163,20 @@ export async function POST(req: NextRequest) {
     }
 
     // ==========================================
-    // Strategy 3: Generic Table Row Fallback
-    // Matches any table row containing cells with product text + quantity + price
+    // Strategy 4: Generic table row fallback
     // ==========================================
     if (items.length === 0) {
-      $('table tbody tr, tr.item').each((_, el) => {
+      $('table tbody tr').each((_, el) => {
         const cells = $(el).find('td');
         if (cells.length < 2) return;
 
         const name = $(cells[0]).text().trim();
-        if (!name || name.toLowerCase().includes('produto') || name.toLowerCase().includes('código') || name.length < 2) {
+        if (
+          !name ||
+          name.toLowerCase().includes('produto') ||
+          name.toLowerCase().includes('código') ||
+          name.length < 2
+        ) {
           return;
         }
 
@@ -152,10 +198,10 @@ export async function POST(req: NextRequest) {
     }
 
     // ==========================================
-    // Extract Header Metadata (Market Name, CNPJ, Date, Total)
+    // Extract header metadata: Market Name, CNPJ, Date
     // ==========================================
     let marketName =
-      $('span.txtTopo, .NomeEmitente, h1, .razaoSocial, #lblRazaoSocial, #lblNomeFantasia, .txtCenter .txtTit')
+      $('#u20, .txtTopo, .NomeEmitente, .razaoSocial, h1, #lblRazaoSocial, #lblNomeFantasia')
         .first()
         .text()
         .trim() || '';
@@ -165,18 +211,12 @@ export async function POST(req: NextRequest) {
       marketName = title.includes('NFCe') || title.includes('Consulta') ? 'Mercado' : title || 'Mercado';
     }
 
-    // Clean up market name if it contains address or extra noise
-    marketName = marketName.split('\n')[0].replace(/\s+/g, ' ').slice(0, 50).trim() || 'Mercado';
+    marketName = marketName.split('\n')[0].replace(/\s+/g, ' ').slice(0, 60).trim() || 'Mercado';
 
     const cnpjMatch = $.html().match(/\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}/);
     const cnpj = cnpjMatch ? cnpjMatch[0] : '';
 
-    let total_amount = items.reduce((s, i) => s + i.total_price, 0);
-    const totalEl = $('.totalNota, .valorTotal, td:contains("Total"), .totalNFe').last();
-    if (totalEl.length) {
-      const parsed = parseDecimalBR(totalEl.next('td').text().trim() || totalEl.text().replace(/[^0-9,]/g, ''));
-      if (parsed > 0) total_amount = parsed;
-    }
+    const total_amount = items.reduce((s, i) => s + i.total_price, 0);
 
     const noteDateMatch = $.html().match(/\d{2}\/\d{2}\/\d{4}/);
     const note_date = noteDateMatch ? noteDateMatch[0] : '';
@@ -202,6 +242,9 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(result);
   } catch (err) {
     const message = err instanceof Error ? err.message : 'Erro desconhecido';
-    return NextResponse.json({ error: `Erro ao processar nota fiscal: ${message}` }, { status: 500 });
+    return NextResponse.json(
+      { error: `Erro ao processar nota fiscal: ${message}` },
+      { status: 500 }
+    );
   }
 }
