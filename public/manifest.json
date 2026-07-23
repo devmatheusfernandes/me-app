@@ -1,0 +1,17 @@
+{
+  "name": "MeApp - Gestão Pessoal Integrada",
+  "short_name": "MeApp",
+  "description": "Controle financeiro com rollover mensal, estoque doméstico e lista de compras inteligente.",
+  "start_url": "/dashboard",
+  "display": "standalone",
+  "background_color": "#020617",
+  "theme_color": "#020617",
+  "orientation": "portrait",
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "64x64 32x32 24x24 16x16",
+      "type": "image/x-icon"
+    }
+  ]
+}
