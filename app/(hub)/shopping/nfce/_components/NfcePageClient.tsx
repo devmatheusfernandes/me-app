@@ -109,7 +109,7 @@ export function NfcePageClient() {
                   ? 'Escaneie o QR Code ou cole o link da nota fiscal para comparar com sua lista.'
                   : 'Escaneie o QR Code ou cole o link da nota fiscal eletrônica para importar os itens como despesas.'}
               </p>
-              <p className="text-xs text-slate-600 mt-1">Suporte: Santa Catarina (SC)</p>
+              <p className="text-xs text-slate-600 mt-1">Suporte: NFC-e Brasil (SC, SP, PR, RS, MG, RJ, etc.)</p>
             </div>
 
             <Button

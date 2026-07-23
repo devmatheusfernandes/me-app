@@ -120,7 +120,7 @@ export function QrScanner({ onCancel, onDecoded }: QrScannerProps) {
           Aponte a câmera para o QR Code da nota fiscal eletrônica
         </p>
         <p className="text-white/40 text-xs mt-1">
-          Suporte: NFC-e Santa Catarina (SC)
+          Suporte: NFC-e Brasil (SC, SP, PR, RS, MG, RJ, etc.)
         </p>
       </div>
     </div>

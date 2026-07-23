@@ -18,7 +18,9 @@ export interface NfceScrapedResult {
 }
 
 function parseDecimalBR(str: string): number {
-  return parseFloat(str.replace(/\./g, '').replace(',', '.')) || 0;
+  if (!str) return 0;
+  const cleaned = str.replace(/[^\d,.-]/g, '').replace(/\./g, '').replace(',', '.');
+  return parseFloat(cleaned) || 0;
 }
 
 export async function POST(req: NextRequest) {
@@ -26,36 +28,44 @@ export async function POST(req: NextRequest) {
     const body = await req.json();
     const { url } = body as { url?: string };
 
-    if (!url) {
+    if (!url || typeof url !== 'string' || !url.trim()) {
       return NextResponse.json({ error: 'URL é obrigatória' }, { status: 400 });
     }
 
-    // Support Santa Catarina's SEFAZ URLs
-    const isSC =
-      url.includes('sefaz.sc.gov.br') ||
-      url.includes('sef.sc.gov.br') ||
-      url.includes('set.sc.gov.br');
+    const cleanUrl = url.trim();
 
-    if (!isSC) {
+    // Ensure valid HTTP/HTTPS URL
+    if (!cleanUrl.startsWith('http://') && !cleanUrl.startsWith('https://')) {
       return NextResponse.json(
-        { error: 'Apenas notas fiscais do estado de Santa Catarina (SC) são suportadas no momento.' },
-        { status: 422 }
+        { error: 'Link de nota fiscal inválido. Certifique-se de incluir http:// ou https://' },
+        { status: 400 }
       );
     }
 
-    const response = await fetch(url, {
-      headers: {
-        'User-Agent':
-          'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36',
-        Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
-        'Accept-Language': 'pt-BR,pt;q=0.9,en;q=0.8',
-      },
-      signal: AbortSignal.timeout(15000),
-    });
+    // Perform fetch with browser User-Agent
+    let response: Response;
+    try {
+      response = await fetch(cleanUrl, {
+        headers: {
+          'User-Agent':
+            'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36',
+          Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+          'Accept-Language': 'pt-BR,pt;q=0.9,en;q=0.8',
+        },
+        redirect: 'follow',
+        signal: AbortSignal.timeout(15000),
+      });
+    } catch (fetchErr) {
+      const msg = fetchErr instanceof Error ? fetchErr.message : 'Erro de conexão';
+      return NextResponse.json(
+        { error: `Não foi possível acessar a SEFAZ (${msg}). Verifique sua conexão ou se a SEFAZ está acessível.` },
+        { status: 502 }
+      );
+    }
 
     if (!response.ok) {
       return NextResponse.json(
-        { error: `Erro ao acessar a nota fiscal: ${response.status} ${response.statusText}` },
+        { error: `Erro de resposta da SEFAZ: HTTP ${response.status}` },
         { status: 502 }
       );
     }
@@ -65,8 +75,11 @@ export async function POST(req: NextRequest) {
 
     const items: NfceScrapedItem[] = [];
 
-    // Strategy 1: SEFAZ-SC sat.sef.sc.gov.br text line regex format
-    // E.g.: "UVA BRANCA S/SEMENTE 500G (Código: 930910 ) Qtde.:1UN: UNVl. Unit.: 12,99 Vl. Total 12,99"
+    // ==========================================
+    // Strategy 1: SEFAZ-SC (sat.sef.sc.gov.br)
+    // Regex for single line format:
+    // "UVA BRANCA S/SEMENTE 500G (Código: 930910 ) Qtde.:1UN: UNVl. Unit.: 12,99 Vl. Total 12,99"
+    // ==========================================
     $('tr').each((_, el) => {
       const text = $(el).text().replace(/\s+/g, ' ').trim();
       const match = text.match(
@@ -84,58 +97,96 @@ export async function POST(req: NextRequest) {
       }
     });
 
-    // Strategy 2: standard table column parsing (fallback)
+    // ==========================================
+    // Strategy 2: Standard ENCAT / SP / PR / RS / RJ / MG / BA NFC-e Layout
+    // Matches #tabResult tr, .table-striped tr, table.tbl_itens tr, etc.
+    // ==========================================
     if (items.length === 0) {
-      $('.item, .produtoNota, tr.item').each((_, el) => {
-        const cells = $(el).find('td');
-        if (cells.length < 3) return;
+      $('#tabResult tr, .table-striped tr, table.tbl_itens tr, tr[id^="Item"], .produtoNota').each((_, el) => {
+        const name = $(el).find('.txtTit, .RProd, .spanItemName, .txtTopo, .borda-desenhada').first().text().trim();
+        const qtyText = $(el).find('.RCR, .qnt, .txtQty, td:contains("Qtd")').text().trim();
+        const unitText = $(el).find('.RText, .txtUn, td:contains("UN")').text().trim();
+        const totalText = $(el).find('.valor, .vTotal, .vItem, .txtValor').first().text().trim();
 
-        const nameParts: string[] = [];
-        $(cells[0]).find('span, div, p').each((_, s) => {
-          const t = $(s).text().trim();
-          if (t) nameParts.push(t);
-        });
-        const name = nameParts.join(' ').trim() || $(cells[0]).text().trim();
-        if (!name) return;
-
-        const qtyText = $(cells[1]).text().trim();
-        const unitText = $(cells[2]).text().trim();
-        const unitPriceText = $(cells[3])?.text().trim() || '0';
-        const totalText = $(cells[4])?.text().trim() || $(cells[cells.length - 1]).text().trim();
-
-        items.push({
-          name,
-          qty: parseDecimalBR(qtyText) || 1,
-          unit: unitText || 'UN',
-          unit_price: parseDecimalBR(unitPriceText),
-          total_price: parseDecimalBR(totalText),
-        });
+        if (name && totalText) {
+          items.push({
+            name: name.replace(/\s+/g, ' '),
+            qty: parseDecimalBR(qtyText) || 1,
+            unit: unitText.replace(/[^A-Za-z]/g, '').toUpperCase() || 'UN',
+            unit_price: 0,
+            total_price: parseDecimalBR(totalText),
+          });
+        }
       });
     }
 
-    // Parse market name and metadata
-    let marketName =
-      $('span.txtTopo, .NomeEmitente, h1, .razaoSocial').first().text().trim() ||
-      $('#lblRazaoSocial, #lblNomeFantasia').first().text().trim() ||
-      '';
+    // ==========================================
+    // Strategy 3: Generic Table Row Fallback
+    // Matches any table row containing cells with product text + quantity + price
+    // ==========================================
+    if (items.length === 0) {
+      $('table tbody tr, tr.item').each((_, el) => {
+        const cells = $(el).find('td');
+        if (cells.length < 2) return;
 
-    // If marketName wasn't found in typical elements, check text around CNPJ or title
+        const name = $(cells[0]).text().trim();
+        if (!name || name.toLowerCase().includes('produto') || name.toLowerCase().includes('código') || name.length < 2) {
+          return;
+        }
+
+        const totalText = $(cells[cells.length - 1]).text().trim();
+        const qtyText = cells.length >= 3 ? $(cells[1]).text().trim() : '1';
+        const unitText = cells.length >= 4 ? $(cells[2]).text().trim() : 'UN';
+
+        const totalPrice = parseDecimalBR(totalText);
+        if (totalPrice > 0) {
+          items.push({
+            name: name.replace(/\s+/g, ' '),
+            qty: parseDecimalBR(qtyText) || 1,
+            unit: unitText.replace(/[^A-Za-z]/g, '').toUpperCase() || 'UN',
+            unit_price: 0,
+            total_price: totalPrice,
+          });
+        }
+      });
+    }
+
+    // ==========================================
+    // Extract Header Metadata (Market Name, CNPJ, Date, Total)
+    // ==========================================
+    let marketName =
+      $('span.txtTopo, .NomeEmitente, h1, .razaoSocial, #lblRazaoSocial, #lblNomeFantasia, .txtCenter .txtTit')
+        .first()
+        .text()
+        .trim() || '';
+
     if (!marketName) {
       const title = $('title').text().trim();
-      marketName = title.includes('NFCe') ? 'Mercado' : title || 'Mercado';
+      marketName = title.includes('NFCe') || title.includes('Consulta') ? 'Mercado' : title || 'Mercado';
     }
+
+    // Clean up market name if it contains address or extra noise
+    marketName = marketName.split('\n')[0].replace(/\s+/g, ' ').slice(0, 50).trim() || 'Mercado';
 
     const cnpjMatch = $.html().match(/\d{2}\.\d{3}\.\d{3}\/\d{4}-\d{2}/);
     const cnpj = cnpjMatch ? cnpjMatch[0] : '';
 
-    const total_amount = items.reduce((s, i) => s + i.total_price, 0);
+    let total_amount = items.reduce((s, i) => s + i.total_price, 0);
+    const totalEl = $('.totalNota, .valorTotal, td:contains("Total"), .totalNFe').last();
+    if (totalEl.length) {
+      const parsed = parseDecimalBR(totalEl.next('td').text().trim() || totalEl.text().replace(/[^0-9,]/g, ''));
+      if (parsed > 0) total_amount = parsed;
+    }
 
     const noteDateMatch = $.html().match(/\d{2}\/\d{2}\/\d{4}/);
     const note_date = noteDateMatch ? noteDateMatch[0] : '';
 
     if (items.length === 0) {
       return NextResponse.json(
-        { error: 'Não foi possível extrair itens desta nota fiscal. Verifique se o link está correto.' },
+        {
+          error:
+            'Não foi possível ler os itens desta nota fiscal. Certifique-se de que o QR Code lido é de uma NFC-e (Nota Fiscal de Consumidor).',
+        },
         { status: 422 }
       );
     }
