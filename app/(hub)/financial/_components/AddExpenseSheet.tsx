@@ -304,6 +304,19 @@ function IncomeForm({
         />
       </div>
 
+      <div className="space-y-2 pt-1 border-t border-slate-800/80">
+        <label className="flex items-center gap-3 cursor-pointer">
+          <input
+            type="checkbox"
+            {...register('is_fixed')}
+            className="w-4 h-4 rounded border-slate-800 bg-slate-950 text-emerald-600 focus:ring-0"
+          />
+          <span className="text-xs text-slate-300 font-medium">
+            Receita Recorrente / Fixa (repete todo mês)
+          </span>
+        </label>
+      </div>
+
       <button
         type="submit"
         disabled={isSubmitting}
