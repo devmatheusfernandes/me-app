@@ -9,7 +9,8 @@ interface QrScannerProps {
 
 /** Parse QR code content from NFC-e — some QR codes are not plain URLs */
 function parseNfceQrContent(raw: string): string {
-  const trimmed = raw.trim();
+  // Clean all control characters, invisible spaces, and backslashes
+  const trimmed = raw.replace(/[\u0000-\u001F\u007F-\u009F]/g, "").replace(/\\/g, '/').trim();
 
   // Already a valid URL — pass through
   if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
@@ -71,6 +72,7 @@ export function QrScanner({ onCancel, onDecoded }: QrScannerProps) {
               if (scanner) {
                 await scanner.stop();
                 scanner.clear();
+                scannerRef.current = null; // Prevent double-stop in cleanup
               }
             } catch (err) {
               console.error('Error stopping scanner:', err);
