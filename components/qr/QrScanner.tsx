@@ -64,13 +64,17 @@ export function QrScanner({ onCancel, onDecoded }: QrScannerProps) {
         await scanner.start(
           { facingMode: 'environment' },
           { fps: 10, qrbox: { width: 260, height: 260 } },
-          (decodedText: string) => {
+          async (decodedText: string) => {
             if (cancelled) return;
             cancelled = true;
-            scanner
-              .stop()
-              .then(() => scanner.clear())
-              .catch(() => {});
+            try {
+              if (scanner) {
+                await scanner.stop();
+                scanner.clear();
+              }
+            } catch (err) {
+              console.error('Error stopping scanner:', err);
+            }
             onDecoded(parseNfceQrContent(decodedText));
           },
           () => {}

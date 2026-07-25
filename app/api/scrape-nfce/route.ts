@@ -289,7 +289,14 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'URL é obrigatória' }, { status: 400 });
     }
 
-    const cleanUrl = url.trim().replace(/\\/g, '/');
+    let cleanUrl = url.trim().replace(/\\/g, '/');
+
+    // Encode special characters like pipes | in query string to avoid HTTP parsing errors
+    if (cleanUrl.includes('?')) {
+      const [base, search] = cleanUrl.split('?');
+      const encodedSearch = search.replace(/\|/g, '%7C');
+      cleanUrl = `${base}?${encodedSearch}`;
+    }
 
     if (!cleanUrl.startsWith('http://') && !cleanUrl.startsWith('https://')) {
       return NextResponse.json(
