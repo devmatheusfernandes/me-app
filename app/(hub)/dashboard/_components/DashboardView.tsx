@@ -12,9 +12,13 @@ interface DashboardViewProps {
     monthYear: string;
     receitas: number;
     outrasDepesas: number;
+    reservadoMetas: number;
     despesasFixasTotal: number;
     despesasFixasPagas: number;
     despesasFixasPendentes: number;
+    despesasPontuaisTotal: number;
+    despesasPontuaisPagas: number;
+    despesasPontuaisPendentes: number;
     saldoLivre: number;
     limiteAjustado: number;
     rollover: number;
@@ -42,9 +46,13 @@ export function DashboardView({ data }: DashboardViewProps) {
         <FinancialSummaryCard
           receitas={data.receitas}
           outrasDepesas={data.outrasDepesas}
+          reservadoMetas={data.reservadoMetas}
           despesasFixasTotal={data.despesasFixasTotal}
           despesasFixasPagas={data.despesasFixasPagas}
           despesasFixasPendentes={data.despesasFixasPendentes}
+          despesasPontuaisTotal={data.despesasPontuaisTotal}
+          despesasPontuaisPagas={data.despesasPontuaisPagas}
+          despesasPontuaisPendentes={data.despesasPontuaisPendentes}
           saldoLivre={data.saldoLivre}
         />
 

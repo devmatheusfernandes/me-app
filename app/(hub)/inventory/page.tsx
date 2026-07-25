@@ -18,5 +18,5 @@ export default async function InventoryPage({ searchParams }: PageProps) {
 
   const items = await inventoryRepository.findAll(user!.id);
 
-  return <InventoryView initialItems={items} selectedMonth={targetMonth} />;
+  return <InventoryView key={targetMonth} initialItems={items} selectedMonth={targetMonth} />;
 }

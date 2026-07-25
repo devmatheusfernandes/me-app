@@ -2,11 +2,12 @@
 
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
-import { LayoutDashboard, Wallet, Package, ShoppingBag } from 'lucide-react';
+import { LayoutDashboard, Wallet, Package, ShoppingBag, ReceiptText } from 'lucide-react';
 
 const NAV_ITEMS = [
   { href: '/dashboard', label: 'Dashboard', icon: LayoutDashboard },
   { href: '/financial', label: 'Financeiro', icon: Wallet },
+  { href: '/extrato', label: 'Extrato', icon: ReceiptText },
   { href: '/inventory', label: 'Estoque', icon: Package },
   { href: '/shopping', label: 'Compras', icon: ShoppingBag },
 ];
@@ -24,14 +25,14 @@ export function BottomNav() {
           <Link
             key={item.href}
             href={item.href}
-            className={`flex flex-col items-center justify-center py-1.5 px-4 rounded-xl transition-all active:scale-95 ${
+            className={`flex flex-col items-center justify-center py-1.5 px-2 rounded-xl transition-all active:scale-95 ${
               isActive
                 ? 'text-blue-400 bg-blue-500/10 font-bold'
                 : 'text-slate-400 hover:text-slate-200 font-medium'
             }`}
           >
-            <Icon size={20} className={isActive ? 'text-blue-400' : 'text-slate-400'} />
-            <span className="text-[11px] mt-1">{item.label}</span>
+            <Icon size={18} className={isActive ? 'text-blue-400' : 'text-slate-400'} />
+            <span className="text-[9px] mt-0.5 leading-none">{item.label}</span>
           </Link>
         );
       })}

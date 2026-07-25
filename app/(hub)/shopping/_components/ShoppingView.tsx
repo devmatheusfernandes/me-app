@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { PlusCircle, MapPin, CalendarClock, QrCode } from 'lucide-react';
+import { PlusCircle, MapPin, QrCode, ChevronDown, ChevronRight } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { BudgetPanel } from './BudgetPanel';
 import { ShoppingItemCard } from './ShoppingItemCard';
@@ -32,10 +32,12 @@ export function ShoppingView({
   const [items, setItems] = useState<ShoppingItem[]>(initialItems);
   const [isAddOpen, setIsAddOpen] = useState(false);
 
+  // Collapsible category state: key = "market::category"
+  const [collapsedKeys, setCollapsedKeys] = useState<Record<string, boolean>>({});
+
   const allMarkets = Array.from(new Set([...DEFAULT_MARKETS, ...customMarkets]));
 
   const activeItems = items.filter((i) => i.status !== 'Adiado');
-  const postponedItems = items.filter((i) => i.status === 'Adiado');
 
   const totalGasto = activeItems
     .filter((i) => i.status === 'Comprado')
@@ -48,6 +50,10 @@ export function ShoppingView({
 
   const markets = Array.from(new Set(activeItems.map((i) => i.market_name || 'Cooper A1')));
   const isOverBudget = totalGasto > limiteBase + rollover;
+
+  const toggleCategoryCollapse = (key: string) => {
+    setCollapsedKeys((prev) => ({ ...prev, [key]: !prev[key] }));
+  };
 
   const handleToggleBought = async (id: string) => {
     setItems((prev) =>
@@ -81,20 +87,24 @@ export function ShoppingView({
   };
 
   const handlePostpone = async (id: string) => {
-    setItems((prev) =>
-      prev.map((i) => (i.id === id ? { ...i, status: 'Adiado' } : i))
-    );
+    // Remove optimistically from current month view
+    setItems((prev) => prev.filter((i) => i.id !== id));
 
     try {
       const res = await postponeItemAction({ itemId: id, currentMonth: selectedMonth });
       if (res?.data?.success) {
-        toast.success(`Item adiado para ${res.data.nextMonth}!`);
+        toast.success(`Item movido para ${res.data.nextMonth}!`);
       } else {
         toast.error('Erro ao adiar item');
+        // Cannot easily revert without refetching; just show error
       }
     } catch {
       toast.error('Erro de conexão');
     }
+  };
+
+  const handleItemAdded = (item: ShoppingItem) => {
+    setItems((prev) => [...prev, item]);
   };
 
   const goToNfce = (marketName?: string) => {
@@ -128,7 +138,7 @@ export function ShoppingView({
         </button>
       </div>
 
-      {/* Items grouped by Market */}
+      {/* Items grouped by Market, then by Category (collapsible) */}
       {activeItems.length === 0 ? (
         <div className="bg-slate-900 rounded-2xl p-8 border border-slate-800 text-center text-xs text-slate-500">
           Sua lista de compras está vazia para este mês.
@@ -145,8 +155,12 @@ export function ShoppingView({
               .filter((i) => i.status === 'Comprado')
               .reduce((s, i) => s + (i.total_price || 0), 0);
 
+            // Group items by category within this market
+            const categories = Array.from(new Set(marketItems.map((i) => i.category || 'Outros')));
+
             return (
               <div key={market}>
+                {/* Market header */}
                 <div className="flex items-center gap-2 mb-2.5 px-1">
                   <MapPin size={14} className="text-blue-500" />
                   <h2 className="text-xs font-bold text-slate-400 uppercase tracking-widest">
@@ -169,44 +183,56 @@ export function ShoppingView({
                   </button>
                 </div>
 
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
-                  {marketItems.map((item) => (
-                    <ShoppingItemCard
-                      key={item.id}
-                      item={item}
-                      onToggleBought={handleToggleBought}
-                      onPostpone={handlePostpone}
-                    />
-                  ))}
+                {/* Categories within market (collapsible) */}
+                <div className="space-y-3">
+                  {categories.map((cat) => {
+                    const collapseKey = `${market}::${cat}`;
+                    const isCollapsed = Boolean(collapsedKeys[collapseKey]);
+                    const catItems = marketItems.filter((i) => (i.category || 'Outros') === cat);
+
+                    const catBought = catItems.filter((i) => i.status === 'Comprado').length;
+
+                    return (
+                      <div key={collapseKey}>
+                        {/* Collapsible category header */}
+                        <button
+                          type="button"
+                          onClick={() => toggleCategoryCollapse(collapseKey)}
+                          className="w-full flex items-center gap-2 mb-2 group"
+                        >
+                          {isCollapsed ? (
+                            <ChevronRight size={13} className="text-slate-600 group-hover:text-slate-400 shrink-0 transition-colors" />
+                          ) : (
+                            <ChevronDown size={13} className="text-slate-600 group-hover:text-slate-400 shrink-0 transition-colors" />
+                          )}
+                          <span className="text-[10px] font-bold uppercase tracking-widest text-slate-600 group-hover:text-slate-400 transition-colors">
+                            {cat}
+                          </span>
+                          <span className="text-[10px] text-slate-700 font-normal">
+                            {catBought}/{catItems.length}
+                          </span>
+                          <div className="h-px bg-slate-800/60 flex-1" />
+                        </button>
+
+                        {!isCollapsed && (
+                          <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                            {catItems.map((item) => (
+                              <ShoppingItemCard
+                                key={item.id}
+                                item={item}
+                                onToggleBought={handleToggleBought}
+                                onPostpone={handlePostpone}
+                              />
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })}
                 </div>
               </div>
             );
           })}
-        </div>
-      )}
-
-      {/* Postponed items section */}
-      {postponedItems.length > 0 && (
-        <div className="mt-6">
-          <div className="flex items-center gap-2 mb-3 px-1">
-            <CalendarClock size={14} className="text-amber-400" />
-            <h2 className="text-xs font-bold text-amber-400/70 uppercase tracking-widest">
-              Adiados para o próximo mês
-            </h2>
-            <div className="h-px bg-amber-500/20 flex-1" />
-          </div>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {postponedItems.map((item) => (
-              <div
-                key={item.id}
-                className="flex items-center gap-3 rounded-2xl border border-amber-500/10 bg-amber-500/5 px-4 py-3 opacity-60"
-              >
-                <CalendarClock size={14} className="text-amber-400 shrink-0" />
-                <p className="text-sm text-slate-400 flex-1 truncate line-through">{item.name}</p>
-                <p className="text-xs text-amber-400/60 font-medium">próx. mês</p>
-              </div>
-            ))}
-          </div>
         </div>
       )}
 
@@ -233,6 +259,7 @@ export function ShoppingView({
         isOpen={isAddOpen}
         onClose={() => setIsAddOpen(false)}
         availableMarkets={allMarkets}
+        onItemAdded={handleItemAdded}
       />
     </div>
   );

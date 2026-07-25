@@ -1,19 +1,19 @@
 'use client';
 
-import { Plus, Minus, Tag, Info } from 'lucide-react';
+import { Plus, Minus, ShoppingCart, Info } from 'lucide-react';
 import type { InventoryItem } from '@/types';
 
 interface InventoryItemCardProps {
   item: InventoryItem;
   onUpdateQty: (id: string, delta: number) => void;
-  onOpenPromo: (item: InventoryItem) => void;
+  onAddToShopping: (item: InventoryItem) => void;
   onOpenDetail: (item: InventoryItem) => void;
 }
 
 export function InventoryItemCard({
   item,
   onUpdateQty,
-  onOpenPromo,
+  onAddToShopping,
   onOpenDetail,
 }: InventoryItemCardProps) {
   const isLow = item.current_qty <= item.min_qty;
@@ -81,13 +81,13 @@ export function InventoryItemCard({
         </div>
       </div>
 
-      {/* Promo button */}
+      {/* Add to shopping list button */}
       <button
-        onClick={() => onOpenPromo(item)}
-        className="w-full flex items-center gap-2 px-4 py-2.5 border-t border-slate-800/60 text-xs font-semibold text-amber-400 hover:bg-amber-500/5 transition-colors rounded-b-2xl"
+        onClick={() => onAddToShopping(item)}
+        className="w-full flex items-center gap-2 px-4 py-2.5 border-t border-slate-800/60 text-xs font-semibold text-blue-400 hover:bg-blue-500/5 transition-colors rounded-b-2xl"
       >
-        <Tag size={13} className="text-amber-400" />
-        Registrar Compra por Promoção
+        <ShoppingCart size={13} className="text-blue-400" />
+        Adicionar à Lista de Compras
       </button>
     </div>
   );

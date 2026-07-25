@@ -1,11 +1,19 @@
 'use client';
 
+import { useState, useRef, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { AddInventoryItemSchema, type AddInventoryItemInput } from '@/modules/inventory/inventory.schema';
-import { addInventoryItemAction } from '@/modules/inventory/inventory.actions';
+import { addInventoryItemAction, searchInventoryItemsAction } from '@/modules/inventory/inventory.actions';
 import { toast } from 'sonner';
-import { Loader2, X } from 'lucide-react';
+import { Loader2, X, Search } from 'lucide-react';
+
+interface InventorySuggestion {
+  id: string;
+  name: string;
+  category: string;
+  unit: string;
+}
 
 interface AddInventorySheetProps {
   isOpen: boolean;
@@ -13,9 +21,16 @@ interface AddInventorySheetProps {
 }
 
 export function AddInventorySheet({ isOpen, onClose }: AddInventorySheetProps) {
+  const [suggestions, setSuggestions] = useState<InventorySuggestion[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const {
     register,
+    watch,
+    setValue,
     handleSubmit,
+    reset,
     formState: { errors, isSubmitting },
   } = useForm<AddInventoryItemInput>({
     resolver: zodResolver(AddInventoryItemSchema),
@@ -27,10 +42,50 @@ export function AddInventorySheet({ isOpen, onClose }: AddInventorySheetProps) {
     },
   });
 
+  const nameValue = watch('name') || '';
+
+  // Debounced inventory search for suggestions
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+
+    if (nameValue.length < 2) {
+      setSuggestions([]);
+      setShowSuggestions(false);
+      return;
+    }
+
+    debounceRef.current = setTimeout(async () => {
+      try {
+        const res = await searchInventoryItemsAction({ query: nameValue });
+        if (res?.data?.items) {
+          setSuggestions(res.data.items);
+          setShowSuggestions(res.data.items.length > 0);
+        }
+      } catch {
+        // Silently ignore search errors
+      }
+    }, 300);
+
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, [nameValue]);
+
+  const handleSelectSuggestion = (s: InventorySuggestion) => {
+    setValue('name', s.name);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    setValue('category', (s.category || 'Mercearia') as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    setValue('unit', (s.unit || 'UN') as any);
+    setShowSuggestions(false);
+    setSuggestions([]);
+  };
+
   if (!isOpen) return null;
 
   const onSubmit = async (data: AddInventoryItemInput) => {
     onClose();
+    reset();
     toast.success('Item adicionado ao estoque!');
 
     try {
@@ -57,17 +112,39 @@ export function AddInventorySheet({ isOpen, onClose }: AddInventorySheetProps) {
         </div>
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-          <div>
+          {/* Nome com autocomplete */}
+          <div className="relative">
             <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
               Nome do Produto
             </label>
-            <input
-              type="text"
-              placeholder="ex: Arroz 5kg, Detergente"
-              {...register('name')}
-              className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-200 focus:border-blue-500 focus:outline-none"
-            />
+            <div className="relative mt-1">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" />
+              <input
+                type="text"
+                placeholder="ex: Arroz 5kg, Detergente"
+                autoComplete="off"
+                {...register('name')}
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-4 py-3 text-sm text-slate-200 focus:border-blue-500 focus:outline-none"
+              />
+            </div>
             {errors.name && <p className="text-xs text-rose-500 mt-1">{errors.name.message}</p>}
+
+            {/* Suggestions dropdown */}
+            {showSuggestions && (
+              <div className="absolute z-20 left-0 right-0 mt-1 bg-slate-800 border border-slate-700 rounded-xl shadow-xl overflow-hidden">
+                {suggestions.map((s) => (
+                  <button
+                    key={s.id}
+                    type="button"
+                    onClick={() => handleSelectSuggestion(s)}
+                    className="w-full flex items-center justify-between px-4 py-2.5 hover:bg-slate-700 transition-colors text-left"
+                  >
+                    <span className="text-sm text-slate-200">{s.name}</span>
+                    <span className="text-[10px] text-slate-500 bg-slate-700 px-1.5 py-0.5 rounded">{s.category}</span>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
           <div className="grid grid-cols-2 gap-3">

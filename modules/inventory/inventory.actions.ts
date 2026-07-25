@@ -99,3 +99,17 @@ export const addToShoppingListFromInventoryAction = protectedAction
     revalidatePath('/shopping');
     return { success: true };
   });
+
+export const searchInventoryItemsAction = protectedAction
+  .schema(z.object({ query: z.string().min(1) }))
+  .action(async ({ parsedInput, ctx }) => {
+    const supabase = await (await import('@/lib/supabase/server')).createClient();
+    const { data } = await supabase
+      .from('inventory')
+      .select('id, name, category, unit')
+      .eq('user_id', ctx.user.id)
+      .ilike('name', `%${parsedInput.query}%`)
+      .limit(6);
+
+    return { items: data || [] };
+  });

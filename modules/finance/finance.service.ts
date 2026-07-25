@@ -28,20 +28,40 @@ export const financeService = {
       .filter((t) => t.type === 'income')
       .reduce((s, t) => s + Number(t.amount || 0), Number(summary.total_income || 0));
 
-    const outrasDepesas = transactions
-      .filter((t) => t.type === 'expense')
+    // Separar despesas avulsas de valores reservados para metas
+    const reservadoMetas = transactions
+      .filter((t) => t.type === 'expense' && t.category === 'Metas')
       .reduce((s, t) => s + Number(t.amount || 0), 0);
 
-    const despesasFixasTotal = expenses.reduce(
+    const outrasDepesas = transactions
+      .filter((t) => t.type === 'expense' && t.category !== 'Metas')
+      .reduce((s, t) => s + Number(t.amount || 0), 0);
+
+    // Despesas recorrentes (fixas) vs pontuais (não-recorrentes)
+    const despesasFixas = expenses.filter((e) => e.is_recurring);
+    const despesasPontuais = expenses.filter((e) => !e.is_recurring);
+
+    const despesasFixasTotal = despesasFixas.reduce(
       (s, e) => s + Number(e.expected_amount || 0),
       0
     );
-    const despesasFixasPagas = expenses
+    const despesasFixasPagas = despesasFixas
       .filter((e) => e.is_paid || e.is_auto_paid)
       .reduce((s, e) => s + Number(e.paid_amount ?? e.expected_amount ?? 0), 0);
 
     const despesasFixasPendentes = Math.max(0, despesasFixasTotal - despesasFixasPagas);
-    const saldoLivre = receitas - despesasFixasTotal - outrasDepesas;
+
+    const despesasPontuaisTotal = despesasPontuais.reduce(
+      (s, e) => s + Number(e.expected_amount || 0),
+      0
+    );
+    const despesasPontuaisPagas = despesasPontuais
+      .filter((e) => e.is_paid || e.is_auto_paid)
+      .reduce((s, e) => s + Number(e.paid_amount ?? e.expected_amount ?? 0), 0);
+
+    const despesasPontuaisPendentes = Math.max(0, despesasPontuaisTotal - despesasPontuaisPagas);
+
+    const saldoLivre = receitas - despesasFixasTotal - despesasPontuaisTotal - outrasDepesas - reservadoMetas;
 
     const limiteBase = Number(summary.market_limit || 2000);
     const rollover = Number(summary.rollover_balance || 0);
@@ -54,9 +74,13 @@ export const financeService = {
       summary,
       receitas,
       outrasDepesas,
+      reservadoMetas,
       despesasFixasTotal,
       despesasFixasPagas,
       despesasFixasPendentes,
+      despesasPontuaisTotal,
+      despesasPontuaisPagas,
+      despesasPontuaisPendentes,
       saldoLivre,
       limiteBase,
       rollover,

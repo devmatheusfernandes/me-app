@@ -82,7 +82,7 @@ export const shoppingRepository = {
     const supabase = await createClient();
     const { error } = await supabase
       .from('shopping_list')
-      .update({ target_month: newTargetMonth, status: 'Adiado' })
+      .update({ target_month: newTargetMonth, status: 'Pendente' })
       .eq('id', id);
 
     if (error) throw new Error(`Erro ao adiar item: ${error.message}`);

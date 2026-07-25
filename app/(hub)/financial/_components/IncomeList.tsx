@@ -39,14 +39,6 @@ export function IncomeList({
         <h2 className="text-xs font-bold text-slate-500 uppercase tracking-widest">
           Entradas de {formatMonthYearLabel(selectedMonth)}
         </h2>
-        {incomes.length > 0 && (
-          <button
-            onClick={() => onAllocateToGoal?.(incomes[0])}
-            className="flex items-center gap-1.5 text-xs font-bold text-purple-400 bg-purple-500/10 border border-purple-500/20 px-3 py-1.5 rounded-xl hover:bg-purple-500/20 active:scale-95 transition-all"
-          >
-            <Target size={14} /> Guardar em Meta
-          </button>
-        )}
       </div>
 
       {incomes.length === 0 ? (

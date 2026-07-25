@@ -30,6 +30,7 @@ export default async function ShoppingPage({ searchParams }: PageProps) {
 
   return (
     <ShoppingView
+      key={targetMonth}
       initialItems={items}
       selectedMonth={targetMonth}
       limiteBase={limiteBase}

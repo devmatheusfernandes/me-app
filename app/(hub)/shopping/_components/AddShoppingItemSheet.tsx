@@ -1,18 +1,29 @@
 'use client';
 
+import { useState, useRef, useEffect } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { AddShoppingItemSchema, type AddShoppingItemInput } from '@/modules/shopping/shopping.schema';
 import { addShoppingItemAction } from '@/modules/shopping/shopping.actions';
+import { searchInventoryItemsAction } from '@/modules/inventory/inventory.actions';
 import { toast } from 'sonner';
-import { Loader2, X } from 'lucide-react';
+import { Loader2, X, Search } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
+import type { ShoppingItem } from '@/types';
+
+interface InventorySuggestion {
+  id: string;
+  name: string;
+  category: string;
+  unit: string;
+}
 
 interface AddShoppingItemSheetProps {
   selectedMonth: string;
   isOpen: boolean;
   onClose: () => void;
   availableMarkets?: string[];
+  onItemAdded?: (item: ShoppingItem) => void;
 }
 
 export function AddShoppingItemSheet({
@@ -20,11 +31,18 @@ export function AddShoppingItemSheet({
   isOpen,
   onClose,
   availableMarkets = ['Cooper A1', 'Supermercado Veneza', 'Atacadão', 'Outros'],
+  onItemAdded,
 }: AddShoppingItemSheetProps) {
+  const [suggestions, setSuggestions] = useState<InventorySuggestion[]>([]);
+  const [showSuggestions, setShowSuggestions] = useState(false);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
   const {
     register,
     watch,
+    setValue,
     handleSubmit,
+    reset,
     formState: { errors, isSubmitting },
   } = useForm<AddShoppingItemInput>({
     resolver: zodResolver(AddShoppingItemSchema),
@@ -38,14 +56,72 @@ export function AddShoppingItemSheet({
     },
   });
 
+  const nameValue = watch('name') || '';
   const qty = watch('qty') || 0;
   const unitPrice = watch('estimated_unit_price') || 0;
   const totalCalculated = qty * unitPrice;
 
+  // Debounced search for inventory suggestions
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+
+    if (nameValue.length < 2) {
+      setSuggestions([]);
+      setShowSuggestions(false);
+      return;
+    }
+
+    debounceRef.current = setTimeout(async () => {
+      try {
+        const res = await searchInventoryItemsAction({ query: nameValue });
+        if (res?.data?.items) {
+          setSuggestions(res.data.items);
+          setShowSuggestions(res.data.items.length > 0);
+        }
+      } catch {
+        // Silently ignore search errors
+      }
+    }, 300);
+
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, [nameValue]);
+
+  const handleSelectSuggestion = (s: InventorySuggestion) => {
+    setValue('name', s.name);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    setValue('category', (s.category || 'Mercearia') as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    setValue('unit', (s.unit || 'UN') as any);
+    setShowSuggestions(false);
+    setSuggestions([]);
+  };
+
   if (!isOpen) return null;
 
   const onSubmit = async (data: AddShoppingItemInput) => {
+    // Optimistic: create a temporary item immediately
+    const totalPrice = Number(data.qty) * Number(data.estimated_unit_price || 0);
+    const optimisticItem: ShoppingItem = {
+      id: `optimistic-${Date.now()}`,
+      user_id: '',
+      name: data.name,
+      market_name: data.market_name,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      category: (data.category || 'Mercearia') as any,
+      qty: data.qty,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      unit: (data.unit || 'UN') as any,
+      estimated_unit_price: data.estimated_unit_price || 0,
+      total_price: totalPrice,
+      target_month: data.target_month,
+      status: 'Pendente',
+    };
+
+    onItemAdded?.(optimisticItem);
     onClose();
+    reset();
     toast.success('Item adicionado à lista de compras!');
 
     try {
@@ -72,17 +148,39 @@ export function AddShoppingItemSheet({
         </div>
 
         <form onSubmit={handleSubmit(onSubmit)} className="space-y-3">
-          <div>
+          {/* Nome com autocomplete */}
+          <div className="relative">
             <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
               Nome do Produto
             </label>
-            <input
-              type="text"
-              placeholder="ex: Arroz, Leite Integral"
-              {...register('name')}
-              className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-xl px-4 py-3 text-sm text-slate-200 focus:border-blue-500 focus:outline-none"
-            />
+            <div className="relative mt-1">
+              <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-slate-500 pointer-events-none" />
+              <input
+                type="text"
+                placeholder="ex: Arroz, Leite Integral"
+                {...register('name')}
+                autoComplete="off"
+                className="w-full bg-slate-950 border border-slate-800 rounded-xl pl-9 pr-4 py-3 text-sm text-slate-200 focus:border-blue-500 focus:outline-none"
+              />
+            </div>
             {errors.name && <p className="text-xs text-rose-500 mt-1">{errors.name.message}</p>}
+
+            {/* Suggestions dropdown */}
+            {showSuggestions && (
+              <div className="absolute z-20 left-0 right-0 mt-1 bg-slate-800 border border-slate-700 rounded-xl shadow-xl overflow-hidden">
+                {suggestions.map((s) => (
+                  <button
+                    key={s.id}
+                    type="button"
+                    onClick={() => handleSelectSuggestion(s)}
+                    className="w-full flex items-center justify-between px-4 py-2.5 hover:bg-slate-700 transition-colors text-left"
+                  >
+                    <span className="text-sm text-slate-200">{s.name}</span>
+                    <span className="text-[10px] text-slate-500 bg-slate-700 px-1.5 py-0.5 rounded">{s.category}</span>
+                  </button>
+                ))}
+              </div>
+            )}
           </div>
 
           <div className="grid grid-cols-2 gap-2">
@@ -115,6 +213,7 @@ export function AddShoppingItemSheet({
                 <option value="Utilidades">Limpeza</option>
                 <option value="Hortifruti">Hortifruti</option>
                 <option value="Doces e Snacks">Doces</option>
+                <option value="Bebidas">Bebidas</option>
                 <option value="Outros">Outros</option>
               </select>
             </div>

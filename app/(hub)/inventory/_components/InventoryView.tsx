@@ -1,15 +1,84 @@
 'use client';
 
 import { useState } from 'react';
-import { Plus, Search, AlertTriangle, ChevronDown, ChevronRight } from 'lucide-react';
+import { Plus, Search, AlertTriangle, ChevronDown, ChevronRight, ShoppingCart, X, Loader2 } from 'lucide-react';
 import { InventoryItemCard } from './InventoryItemCard';
 import { LowStockDialog } from './LowStockDialog';
-import { PromoPurchaseSheet } from './PromoPurchaseSheet';
 import { AddInventorySheet } from './AddInventorySheet';
 import { InventoryDetailSheet } from './InventoryDetailSheet';
 import { updateInventoryQtyAction } from '@/modules/inventory/inventory.actions';
+import { addToShoppingListFromInventoryAction } from '@/modules/inventory/inventory.actions';
 import { toast } from 'sonner';
 import type { InventoryItem } from '@/types';
+
+interface AddToShoppingModalProps {
+  item: InventoryItem;
+  selectedMonth: string;
+  onClose: () => void;
+}
+
+function AddToShoppingModal({ item, selectedMonth, onClose }: AddToShoppingModalProps) {
+  const [isLoading, setIsLoading] = useState(false);
+
+  const handleConfirm = async () => {
+    setIsLoading(true);
+    try {
+      const res = await addToShoppingListFromInventoryAction({
+        inventory_id: item.id!,
+        name: item.name,
+        category: item.category,
+        target_month: selectedMonth,
+      });
+      if (res?.data?.success) {
+        toast.success(`"${item.name}" adicionado à lista de compras de ${selectedMonth}!`);
+        onClose();
+      } else {
+        toast.error('Erro ao adicionar à lista');
+      }
+    } catch {
+      toast.error('Erro de conexão');
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center p-4">
+      <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
+      <div className="relative w-full max-w-sm bg-slate-900 rounded-3xl border border-slate-800 p-6 shadow-2xl animate-in zoom-in-95 duration-200 z-10">
+        <button onClick={onClose} className="absolute top-4 right-4 text-slate-500 hover:text-slate-300">
+          <X size={18} />
+        </button>
+
+        <div className="w-12 h-12 rounded-2xl bg-blue-500/10 flex items-center justify-center mb-4">
+          <ShoppingCart size={22} className="text-blue-400" />
+        </div>
+
+        <h3 className="font-bold text-base text-slate-100 mb-1">Adicionar à Lista</h3>
+        <p className="text-sm text-slate-400 mb-5">
+          Adicionar <span className="text-slate-200 font-semibold">&quot;{item.name}&quot;</span> à lista de compras de <span className="text-blue-400 font-semibold">{selectedMonth}</span>?
+        </p>
+
+        <div className="flex gap-3">
+          <button
+            onClick={onClose}
+            className="flex-1 py-3 rounded-xl border border-slate-700 text-slate-400 font-semibold text-sm hover:bg-slate-800 transition-colors"
+          >
+            Cancelar
+          </button>
+          <button
+            onClick={handleConfirm}
+            disabled={isLoading}
+            className="flex-1 py-3 rounded-xl bg-blue-600 hover:bg-blue-500 text-white font-semibold text-sm flex items-center justify-center gap-2 transition-colors disabled:opacity-60"
+          >
+            {isLoading ? <Loader2 size={16} className="animate-spin" /> : <ShoppingCart size={16} />}
+            Adicionar
+          </button>
+        </div>
+      </div>
+    </div>
+  );
+}
 
 interface InventoryViewProps {
   initialItems: InventoryItem[];
@@ -20,7 +89,7 @@ export function InventoryView({ initialItems, selectedMonth }: InventoryViewProp
   const [items, setItems] = useState<InventoryItem[]>(initialItems);
   const [searchQuery, setSearchQuery] = useState('');
   const [lowStockDialogItem, setLowStockDialogItem] = useState<InventoryItem | null>(null);
-  const [promoSheetItem, setPromoSheetItem] = useState<InventoryItem | null>(null);
+  const [addToShoppingItem, setAddToShoppingItem] = useState<InventoryItem | null>(null);
   const [detailItem, setDetailItem] = useState<InventoryItem | null>(null);
   const [isAddOpen, setIsAddOpen] = useState(false);
 
@@ -166,7 +235,7 @@ export function InventoryView({ initialItems, selectedMonth }: InventoryViewProp
                         key={item.id}
                         item={item}
                         onUpdateQty={handleUpdateQty}
-                        onOpenPromo={(itm) => setPromoSheetItem(itm)}
+                        onAddToShopping={(itm) => setAddToShoppingItem(itm)}
                         onOpenDetail={(itm) => setDetailItem(itm)}
                       />
                     ))}
@@ -185,11 +254,13 @@ export function InventoryView({ initialItems, selectedMonth }: InventoryViewProp
         onClose={() => setLowStockDialogItem(null)}
       />
 
-      <PromoPurchaseSheet
-        item={promoSheetItem}
-        selectedMonth={selectedMonth}
-        onClose={() => setPromoSheetItem(null)}
-      />
+      {addToShoppingItem && (
+        <AddToShoppingModal
+          item={addToShoppingItem}
+          selectedMonth={selectedMonth}
+          onClose={() => setAddToShoppingItem(null)}
+        />
+      )}
 
       <InventoryDetailSheet
         item={detailItem}
