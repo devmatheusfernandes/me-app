@@ -119,13 +119,10 @@ function buildAlternateUrls(originalUrl: string): string[] {
   return urls;
 }
 
-async function fetchHtml(url: string, depth = 0): Promise<string | null> {
-  if (depth > 2) return null;
-
+async function fetchHtml(url: string): Promise<string | null> {
   const userAgents = [
-    'Mozilla/5.0 (Linux; Android 13; SM-G991B) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Mobile Safari/537.36',
-    'Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.0 Mobile/15E148 Safari/604.1',
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36',
+    'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.0 Safari/605.1.15',
   ];
 
   for (const ua of userAgents) {
@@ -135,46 +132,13 @@ async function fetchHtml(url: string, depth = 0): Promise<string | null> {
           'User-Agent': ua,
           Accept: 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
           'Accept-Language': 'pt-BR,pt;q=0.9,en;q=0.8',
-          'Accept-Encoding': 'gzip, deflate, br',
-          Connection: 'keep-alive',
-          'Cache-Control': 'no-cache',
-          Pragma: 'no-cache',
         },
         redirect: 'follow',
-        signal: AbortSignal.timeout(12000),
+        signal: AbortSignal.timeout(15000),
       });
 
       if (res.ok) {
-        const html = await res.text();
-
-        // Check for <meta http-equiv="refresh" content="0; url=...">
-        const refreshMatch = html.match(/<meta[^>]+http-equiv=["']refresh["'][^>]+url=["']?([^"'>\s]+)["']?/i) ||
-                             html.match(/<meta[^>]+url=["']?([^"'>\s]+)["'][^>]+http-equiv=["']refresh["']/i);
-
-        if (refreshMatch && refreshMatch[1]) {
-          let redirectUrl = refreshMatch[1];
-          if (!redirectUrl.startsWith('http')) {
-            const parsedBase = new URL(url);
-            redirectUrl = new URL(redirectUrl, parsedBase.origin).toString();
-          }
-          return fetchHtml(redirectUrl, depth + 1);
-        }
-
-        // Check for JS redirects: window.location.replace("...") or window.location = "..."
-        const jsLocationMatch = html.match(/window\.location(?:\.href)?\.replace\(['"]([^'"]+)['"]\)/i) ||
-                                html.match(/window\.location(?:\.href)?\s*=\s*['"]([^'"]+)['"]/i) ||
-                                html.match(/location\.href\s*=\s*['"]([^'"]+)['"]/i);
-
-        if (jsLocationMatch && jsLocationMatch[1]) {
-          let redirectUrl = jsLocationMatch[1];
-          if (!redirectUrl.startsWith('http')) {
-            const parsedBase = new URL(url);
-            redirectUrl = new URL(redirectUrl, parsedBase.origin).toString();
-          }
-          return fetchHtml(redirectUrl, depth + 1);
-        }
-
-        return html;
+        return await res.text();
       }
     } catch {
       // try next UA
@@ -325,15 +289,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json({ error: 'URL é obrigatória' }, { status: 400 });
     }
 
-    let cleanUrl = url.trim().replace(/\\/g, '/');
-
-    // Santa Catarina URL transformation for direct scraping
-    if (cleanUrl.includes('sat.sef.sc.gov.br/nfce/consulta')) {
-      cleanUrl = cleanUrl.replace(
-        'sat.sef.sc.gov.br/nfce/consulta',
-        'sat.sef.sc.gov.br/tax.net/Sat.sef.sc.gov.br.Web.Nfce/ConsultaNFCe.aspx'
-      );
-    }
+    const cleanUrl = url.trim().replace(/\\/g, '/');
 
     if (!cleanUrl.startsWith('http://') && !cleanUrl.startsWith('https://')) {
       return NextResponse.json(
