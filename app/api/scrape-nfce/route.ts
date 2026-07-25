@@ -1,6 +1,9 @@
 import { NextRequest, NextResponse } from 'next/server';
 import * as cheerio from 'cheerio';
 
+export const preferredRegion = ['gru1'];
+export const runtime = 'nodejs';
+
 export interface NfceScrapedItem {
   name: string;
   qty: number;
