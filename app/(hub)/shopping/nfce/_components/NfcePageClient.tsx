@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { ArrowLeft, QrCode, Loader2, Link as LinkIcon, Search } from 'lucide-react';
+import { ArrowLeft, QrCode, Loader2, Link as LinkIcon, Search, AlignLeft } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { QrScanner } from '@/components/qr/QrScanner';
 import { NfcePreview } from './NfcePreview';
@@ -21,6 +21,7 @@ export function NfcePageClient() {
   const [showScanner, setShowScanner] = useState(false);
   const [loading, setLoading] = useState(false);
   const [urlInput, setUrlInput] = useState('');
+  const [textInput, setTextInput] = useState('');
   const [scraped, setScraped] = useState<NfceScrapedResult | null>(null);
 
   async function processUrl(urlToProcess: string) {
@@ -50,9 +51,40 @@ export function NfcePageClient() {
     }
   }
 
+  async function processText(textToProcess: string) {
+    if (!textToProcess.trim()) {
+      toast.error('Cole o texto da nota fiscal para continuar');
+      return;
+    }
+    setLoading(true);
+    try {
+      const res = await fetch('/api/scrape-nfce', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ text: textToProcess.trim() }),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        toast.error(data.error || 'Erro ao processar o texto');
+        setLoading(false);
+        return;
+      }
+      setScraped(data as NfceScrapedResult);
+    } catch {
+      toast.error('Erro de conexão ao processar o texto.');
+    } finally {
+      setLoading(false);
+    }
+  }
+
   function handleFormSubmit(e: React.FormEvent) {
     e.preventDefault();
     processUrl(urlInput);
+  }
+
+  function handleTextSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    processText(textInput);
   }
 
   if (showScanner) {
@@ -88,7 +120,7 @@ export function NfcePageClient() {
         {loading ? (
           <div className="flex flex-col items-center justify-center h-64 gap-4">
             <Loader2 size={36} className="animate-spin text-blue-400" />
-            <p className="text-slate-400 text-sm">Processando nota fiscal...</p>
+            <p className="text-slate-400 text-sm">Processando dados...</p>
           </div>
         ) : scraped ? (
           <NfcePreview
@@ -98,20 +130,21 @@ export function NfcePageClient() {
             withinMarketMode={withinMarketMode}
           />
         ) : (
-          <div className="flex flex-col items-center justify-center pt-8 pb-12 gap-8 text-center max-w-md mx-auto">
+          <div className="flex flex-col items-center justify-center pt-8 pb-12 gap-6 text-center max-w-md mx-auto">
             <div className="w-20 h-20 rounded-3xl bg-blue-500/10 flex items-center justify-center">
               <QrCode size={40} className="text-blue-400" />
             </div>
             <div>
               <h2 className="text-lg font-semibold text-white mb-1">Importar NFC-e</h2>
-              <p className="text-sm text-slate-400">
+              <p className="text-sm text-slate-400 leading-relaxed">
                 {withinMarketMode
-                  ? 'Escaneie o QR Code ou cole o link da nota fiscal para comparar com sua lista.'
-                  : 'Escaneie o QR Code ou cole o link da nota fiscal eletrônica para importar os itens como despesas.'}
+                  ? 'Escaneie o QR Code, cole o link ou o texto copiado da nota fiscal para comparar com sua lista.'
+                  : 'Escaneie o QR Code, cole o link ou o texto copiado da nota fiscal eletrônica para importar os itens.'}
               </p>
-              <p className="text-xs text-slate-600 mt-1">Suporte: NFC-e Brasil (SC, SP, PR, RS, MG, RJ, etc.)</p>
+              <p className="text-[10px] text-slate-600 mt-1.5 uppercase tracking-widest font-bold">Suporte: SC, SP, PR, RS, MG, RJ, etc.</p>
             </div>
 
+            {/* QR Code Scan Button */}
             <Button
               onClick={() => setShowScanner(true)}
               className="w-full bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-xl py-3.5 shadow-lg shadow-blue-600/20 active:scale-98 transition-all"
@@ -122,7 +155,7 @@ export function NfcePageClient() {
 
             <div className="flex items-center gap-3 w-full my-1">
               <div className="h-px bg-slate-800 flex-1" />
-              <span className="text-xs font-semibold text-slate-600 uppercase tracking-wider">ou cole o link</span>
+              <span className="text-[10px] font-bold text-slate-600 uppercase tracking-widest">ou cole o link</span>
               <div className="h-px bg-slate-800 flex-1" />
             </div>
 
@@ -137,19 +170,48 @@ export function NfcePageClient() {
                   value={urlInput}
                   onChange={(e) => setUrlInput(e.target.value)}
                   placeholder="https://sat.sef.sc.gov.br/..."
-                  className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-10 pr-4 py-3 text-xs text-white placeholder:text-slate-600 focus:outline-none focus:border-blue-500 transition-colors"
+                  className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-10 pr-4 py-3.5 text-xs text-white placeholder:text-slate-600 focus:outline-none focus:border-blue-500 transition-colors"
                 />
               </div>
               <Button
                 type="submit"
                 disabled={!urlInput.trim()}
                 variant="outline"
-                className="w-full border-slate-800 bg-slate-900/50 hover:bg-slate-800 text-slate-200 font-semibold rounded-xl py-3 text-xs disabled:opacity-40"
+                className="w-full border-slate-800 bg-slate-900/50 hover:bg-slate-800 text-slate-200 font-semibold rounded-xl py-3.5 text-xs disabled:opacity-40"
               >
                 <Search size={14} className="mr-2" />
                 Buscar Nota por Link
               </Button>
             </form>
+
+            <div className="flex items-center gap-3 w-full my-1">
+              <div className="h-px bg-slate-800 flex-1" />
+              <span className="text-[10px] font-bold text-slate-600 uppercase tracking-widest">ou cole o texto</span>
+              <div className="h-px bg-slate-800 flex-1" />
+            </div>
+
+            {/* Raw Text Input Form */}
+            <form onSubmit={handleTextSubmit} className="w-full space-y-3">
+              <div className="relative">
+                <textarea
+                  value={textInput}
+                  onChange={(e) => setTextInput(e.target.value)}
+                  placeholder="Abra a nota no navegador, copie os itens e cole aqui:&#10;ex: 005 9246102 QUEIJO MUSSARELA 0,35 KG X 58,00 20,16"
+                  rows={4}
+                  className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 text-xs text-white placeholder:text-slate-600 focus:outline-none focus:border-blue-500 transition-colors resize-none font-mono"
+                />
+              </div>
+              <Button
+                type="submit"
+                disabled={!textInput.trim()}
+                variant="outline"
+                className="w-full border-slate-800 bg-slate-900/50 hover:bg-slate-800 text-slate-200 font-semibold rounded-xl py-3.5 text-xs disabled:opacity-40"
+              >
+                <AlignLeft size={14} className="mr-2" />
+                Importar Itens do Texto
+              </Button>
+            </form>
+
           </div>
         )}
       </div>
