@@ -21,7 +21,6 @@ export function NfcePageClient() {
   const [showScanner, setShowScanner] = useState(false);
   const [loading, setLoading] = useState(false);
   const [urlInput, setUrlInput] = useState('');
-  const [textInput, setTextInput] = useState('');
   const [scraped, setScraped] = useState<NfceScrapedResult | null>(null);
 
   async function processUrl(urlToProcess: string) {
@@ -51,40 +50,9 @@ export function NfcePageClient() {
     }
   }
 
-  async function processText(textToProcess: string) {
-    if (!textToProcess.trim()) {
-      toast.error('Cole o texto da nota fiscal para continuar');
-      return;
-    }
-    setLoading(true);
-    try {
-      const res = await fetch('/api/scrape-nfce', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: textToProcess.trim() }),
-      });
-      const data = await res.json();
-      if (!res.ok) {
-        toast.error(data.error || 'Erro ao processar o texto');
-        setLoading(false);
-        return;
-      }
-      setScraped(data as NfceScrapedResult);
-    } catch {
-      toast.error('Erro de conexão ao processar o texto.');
-    } finally {
-      setLoading(false);
-    }
-  }
-
   function handleFormSubmit(e: React.FormEvent) {
     e.preventDefault();
     processUrl(urlInput);
-  }
-
-  function handleTextSubmit(e: React.FormEvent) {
-    e.preventDefault();
-    processText(textInput);
   }
 
   if (showScanner) {
@@ -183,35 +151,6 @@ export function NfcePageClient() {
                 Buscar Nota por Link
               </Button>
             </form>
-
-            <div className="flex items-center gap-3 w-full my-1">
-              <div className="h-px bg-slate-800 flex-1" />
-              <span className="text-[10px] font-bold text-slate-600 uppercase tracking-widest">ou cole o texto</span>
-              <div className="h-px bg-slate-800 flex-1" />
-            </div>
-
-            {/* Raw Text Input Form */}
-            <form onSubmit={handleTextSubmit} className="w-full space-y-3">
-              <div className="relative">
-                <textarea
-                  value={textInput}
-                  onChange={(e) => setTextInput(e.target.value)}
-                  placeholder="Abra a nota no navegador, copie os itens e cole aqui:&#10;ex: 005 9246102 QUEIJO MUSSARELA 0,35 KG X 58,00 20,16"
-                  rows={4}
-                  className="w-full bg-slate-900 border border-slate-800 rounded-xl px-4 py-3 text-xs text-white placeholder:text-slate-600 focus:outline-none focus:border-blue-500 transition-colors resize-none font-mono"
-                />
-              </div>
-              <Button
-                type="submit"
-                disabled={!textInput.trim()}
-                variant="outline"
-                className="w-full border-slate-800 bg-slate-900/50 hover:bg-slate-800 text-slate-200 font-semibold rounded-xl py-3.5 text-xs disabled:opacity-40"
-              >
-                <AlignLeft size={14} className="mr-2" />
-                Importar Itens do Texto
-              </Button>
-            </form>
-
           </div>
         )}
       </div>

@@ -1,10 +1,11 @@
 'use client';
 
 import { useState } from 'react';
-import { Plus, Search, AlertTriangle, ChevronDown, ChevronRight, ShoppingCart, X, Loader2 } from 'lucide-react';
+import { Plus, Search, AlertTriangle, ChevronDown, ChevronRight, ShoppingCart, X, Loader2, Barcode } from 'lucide-react';
 import { InventoryItemCard } from './InventoryItemCard';
 import { LowStockDialog } from './LowStockDialog';
 import { AddInventorySheet } from './AddInventorySheet';
+import { BarcodeScanner } from '@/components/qr/BarcodeScanner';
 import { InventoryDetailSheet } from './InventoryDetailSheet';
 import { updateInventoryQtyAction } from '@/modules/inventory/inventory.actions';
 import { addToShoppingListFromInventoryAction } from '@/modules/inventory/inventory.actions';
@@ -92,6 +93,37 @@ export function InventoryView({ initialItems, selectedMonth }: InventoryViewProp
   const [addToShoppingItem, setAddToShoppingItem] = useState<InventoryItem | null>(null);
   const [detailItem, setDetailItem] = useState<InventoryItem | null>(null);
   const [isAddOpen, setIsAddOpen] = useState(false);
+  const [showBarcodeScanner, setShowBarcodeScanner] = useState(false);
+  const [scannedProductData, setScannedProductData] = useState<any>(null);
+
+  const handleBarcodeDecoded = async (ean: string) => {
+    setShowBarcodeScanner(false);
+    const toastId = toast.loading('Buscando produto no catálogo...');
+    try {
+      const res = await fetch(`/api/barcode/${ean}`);
+      const data = await res.json();
+      
+      if (res.ok && data.success) {
+        toast.success(`Produto localizado: ${data.name}`, { id: toastId });
+        setScannedProductData({
+          name: data.name,
+          category: data.category,
+          unit: data.unit,
+          current_qty: 1,
+          min_qty: 1,
+        });
+        setIsAddOpen(true);
+      } else {
+        toast.error(data.error || 'Produto não cadastrado. Preencha manualmente.', { id: toastId });
+        setScannedProductData(null);
+        setIsAddOpen(true);
+      }
+    } catch {
+      toast.error('Erro de conexão ao buscar produto.', { id: toastId });
+      setScannedProductData(null);
+      setIsAddOpen(true);
+    }
+  };
 
   // Track collapsed categories
   const [collapsedCategories, setCollapsedCategories] = useState<Record<string, boolean>>({});
@@ -157,12 +189,21 @@ export function InventoryView({ initialItems, selectedMonth }: InventoryViewProp
           </p>
           <h1 className="text-2xl font-bold text-slate-50">Estoque de Casa</h1>
         </div>
-        <button
-          onClick={() => setIsAddOpen(true)}
-          className="bg-slate-900 p-2.5 rounded-xl border border-slate-800 text-slate-400 active:scale-90 transition-all hover:text-white"
-        >
-          <Plus size={20} />
-        </button>
+        <div className="flex gap-2">
+          <button
+            onClick={() => setShowBarcodeScanner(true)}
+            className="bg-slate-900 p-2.5 rounded-xl border border-slate-800 text-slate-400 active:scale-90 transition-all hover:text-white"
+            title="Escanear Código de Barras"
+          >
+            <Barcode size={20} />
+          </button>
+          <button
+            onClick={() => setIsAddOpen(true)}
+            className="bg-slate-900 p-2.5 rounded-xl border border-slate-800 text-slate-400 active:scale-90 transition-all hover:text-white"
+          >
+            <Plus size={20} />
+          </button>
+        </div>
       </div>
 
       {/* Search */}
@@ -269,7 +310,21 @@ export function InventoryView({ initialItems, selectedMonth }: InventoryViewProp
         onDeleted={handleItemDeleted}
       />
 
-      <AddInventorySheet isOpen={isAddOpen} onClose={() => setIsAddOpen(false)} />
+      <AddInventorySheet
+        isOpen={isAddOpen}
+        onClose={() => {
+          setIsAddOpen(false);
+          setScannedProductData(null);
+        }}
+        initialData={scannedProductData}
+      />
+
+      {showBarcodeScanner && (
+        <BarcodeScanner
+          onCancel={() => setShowBarcodeScanner(false)}
+          onDecoded={handleBarcodeDecoded}
+        />
+      )}
     </div>
   );
 }

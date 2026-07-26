@@ -18,9 +18,10 @@ interface InventorySuggestion {
 interface AddInventorySheetProps {
   isOpen: boolean;
   onClose: () => void;
+  initialData?: Partial<AddInventoryItemInput> | null;
 }
 
-export function AddInventorySheet({ isOpen, onClose }: AddInventorySheetProps) {
+export function AddInventorySheet({ isOpen, onClose, initialData }: AddInventorySheetProps) {
   const [suggestions, setSuggestions] = useState<InventorySuggestion[]>([]);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -41,6 +42,18 @@ export function AddInventorySheet({ isOpen, onClose }: AddInventorySheetProps) {
       min_qty: 1,
     },
   });
+
+  useEffect(() => {
+    if (isOpen) {
+      reset({
+        name: initialData?.name || '',
+        category: initialData?.category || 'Mercearia',
+        unit: initialData?.unit || 'UN',
+        current_qty: initialData?.current_qty ?? 1,
+        min_qty: initialData?.min_qty ?? 1,
+      });
+    }
+  }, [isOpen, initialData, reset]);
 
   const nameValue = watch('name') || '';
 

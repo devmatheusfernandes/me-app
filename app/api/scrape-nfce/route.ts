@@ -32,40 +32,6 @@ function parseDecimalBR(str: string): number {
   return parseFloat(cleaned) || 0;
 }
 
-function parseNfceText(rawText: string): NfceScrapedItem[] {
-  const lines = rawText.split('\n');
-  const items: NfceScrapedItem[] = [];
-  
-  // Pattern matching: [ItemNo] [Code] [ProductName] [Qty] [Unit] [X] [UnitPrice] [TotalPrice]
-  const pattern = /^\s*(?:\d+\s+)?(?:\d+\s+)?(.*?)\s+([\d,.]+)\s*(UN|KG|LT|PC|CX|G|ML|L|PCT|FD|KIT)\s+(?:X\s+)?([\d,.]+)\s+([\d,.]+)\s*$/i;
-
-  for (let line of lines) {
-    line = line.trim();
-    if (!line) continue;
-
-    const match = line.match(pattern);
-    if (match) {
-      const name = match[1].trim();
-      const qty = parseDecimalBR(match[2]);
-      const unit = match[3].toUpperCase();
-      const unitPrice = parseDecimalBR(match[4]);
-      const total = parseDecimalBR(match[5]);
-
-      if (total > 0 || unitPrice > 0) {
-        items.push({
-          name: name.replace(/\s+/g, ' '),
-          qty: qty || 1,
-          unit: unit || 'UN',
-          unit_price: unitPrice,
-          total_price: total || (qty * unitPrice),
-        });
-      }
-    }
-  }
-
-  return items;
-}
-
 function cleanName(name: string): string {
   return name.replace(/\s+/g, ' ').replace(/^\d+\s*-\s*/, '').trim();
 }
@@ -317,30 +283,10 @@ function extractMetadata(html: string, $: ReturnType<typeof cheerio.load>) {
 export async function POST(req: NextRequest) {
   try {
     const body = await req.json();
-    const { url, text } = body as { url?: string; text?: string };
-
-    if (text && text.trim()) {
-      const items = parseNfceText(text);
-      if (items.length === 0) {
-        return NextResponse.json(
-          { error: 'Não foi possível identificar nenhum item no texto colado. Certifique-se de copiar a tabela de itens inteira e tente novamente.' },
-          { status: 422 }
-        );
-      }
-      
-      const total_amount = items.reduce((s, i) => s + i.total_price, 0);
-      
-      return NextResponse.json({
-        market_name: 'Importado por Texto',
-        items,
-        total_amount,
-        note_date: new Date().toLocaleDateString('pt-BR'),
-        cnpj: '',
-      });
-    }
+    const { url } = body as { url?: string };
 
     if (!url || typeof url !== 'string' || !url.trim()) {
-      return NextResponse.json({ error: 'Informe um link ou cole o texto dos itens da nota' }, { status: 400 });
+      return NextResponse.json({ error: 'URL é obrigatória' }, { status: 400 });
     }
 
     let cleanUrl = url.trim().replace(/\\/g, '/');
