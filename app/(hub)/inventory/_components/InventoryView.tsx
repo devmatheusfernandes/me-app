@@ -221,20 +221,7 @@ export function InventoryView({ initialItems, selectedMonth }: InventoryViewProp
         />
       </div>
 
-      {/* Low stock alert box */}
-      {lowItems.length > 0 && (
-        <div className="bg-rose-500/10 border border-rose-500/20 rounded-xl p-4 mb-5 flex items-start gap-3 shadow-sm">
-          <AlertTriangle size={18} className="text-rose-500 shrink-0 mt-0.5" />
-          <div>
-            <h3 className="font-semibold text-rose-400 text-sm">
-              {lowItems.length} {lowItems.length === 1 ? 'item abaixo' : 'itens abaixo'} do mínimo
-            </h3>
-            <p className="text-xs text-rose-400/70 mt-0.5">
-              {lowItems.map((i) => i.name).join(', ')}
-            </p>
-          </div>
-        </div>
-      )}
+
 
       {/* Items by Category */}
       {filteredItems.length === 0 ? (

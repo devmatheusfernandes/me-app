@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { useForm } from 'react-hook-form';
+import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { AddShoppingItemSchema, type AddShoppingItemInput } from '@/modules/shopping/shopping.schema';
 import { addShoppingItemAction } from '@/modules/shopping/shopping.actions';
@@ -16,6 +16,7 @@ interface InventorySuggestion {
   name: string;
   category: string;
   unit: string;
+  min_qty?: number;
 }
 
 interface AddShoppingItemSheetProps {
@@ -25,6 +26,8 @@ interface AddShoppingItemSheetProps {
   availableMarkets?: string[];
   onItemAdded?: (item: ShoppingItem) => void;
 }
+
+const generateOptimisticId = () => `optimistic-${Date.now()}`;
 
 export function AddShoppingItemSheet({
   selectedMonth,
@@ -39,7 +42,7 @@ export function AddShoppingItemSheet({
 
   const {
     register,
-    watch,
+    control,
     setValue,
     handleSubmit,
     reset,
@@ -53,25 +56,26 @@ export function AddShoppingItemSheet({
       unit: 'UN',
       estimated_unit_price: 0,
       target_month: selectedMonth,
+      min_qty: 1,
     },
   });
 
-  const nameValue = watch('name') || '';
-  const qty = watch('qty') || 0;
-  const unitPrice = watch('estimated_unit_price') || 0;
+  const nameValue = useWatch({ control, name: 'name', defaultValue: '' }) || '';
+  const qty = useWatch({ control, name: 'qty', defaultValue: 0 }) || 0;
+  const unitPrice = useWatch({ control, name: 'estimated_unit_price', defaultValue: 0 }) || 0;
   const totalCalculated = qty * unitPrice;
 
   // Debounced search for inventory suggestions
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
 
-    if (nameValue.length < 2) {
-      setSuggestions([]);
-      setShowSuggestions(false);
-      return;
-    }
-
     debounceRef.current = setTimeout(async () => {
+      if (nameValue.length < 2) {
+        setSuggestions([]);
+        setShowSuggestions(false);
+        return;
+      }
+
       try {
         const res = await searchInventoryItemsAction({ query: nameValue });
         if (res?.data?.items) {
@@ -94,6 +98,9 @@ export function AddShoppingItemSheet({
     setValue('category', (s.category || 'Mercearia') as any);
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     setValue('unit', (s.unit || 'UN') as any);
+    if (s.min_qty !== undefined) {
+      setValue('min_qty', s.min_qty);
+    }
     setShowSuggestions(false);
     setSuggestions([]);
   };
@@ -104,7 +111,7 @@ export function AddShoppingItemSheet({
     // Optimistic: create a temporary item immediately
     const totalPrice = Number(data.qty) * Number(data.estimated_unit_price || 0);
     const optimisticItem: ShoppingItem = {
-      id: `optimistic-${Date.now()}`,
+      id: generateOptimisticId(),
       user_id: '',
       name: data.name,
       market_name: data.market_name,
@@ -219,7 +226,7 @@ export function AddShoppingItemSheet({
             </div>
           </div>
 
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
             <div>
               <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
                 Qtd
@@ -258,6 +265,19 @@ export function AddShoppingItemSheet({
                 placeholder="0.00"
                 {...register('estimated_unit_price', { valueAsNumber: true })}
                 className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-3 text-sm text-slate-200 focus:border-blue-500 focus:outline-none"
+              />
+            </div>
+
+            <div>
+              <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider" title="Estoque mínimo desejado para sempre avisar quando faltar">
+                Mínimo
+              </label>
+              <input
+                type="number"
+                step="0.1"
+                placeholder="0"
+                {...register('min_qty', { valueAsNumber: true })}
+                className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-3 text-sm text-slate-200 focus:border-blue-500 focus:outline-none text-center"
               />
             </div>
           </div>

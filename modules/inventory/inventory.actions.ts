@@ -106,7 +106,7 @@ export const searchInventoryItemsAction = protectedAction
     const supabase = await (await import('@/lib/supabase/server')).createClient();
     const { data } = await supabase
       .from('inventory')
-      .select('id, name, category, unit')
+      .select('id, name, category, unit, min_qty')
       .eq('user_id', ctx.user.id)
       .ilike('name', `%${parsedInput.query}%`)
       .limit(6);

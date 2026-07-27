@@ -9,6 +9,7 @@ export const AddShoppingItemSchema = z.object({
   unit: z.enum(['UN', 'KG', 'G', 'L', 'ML', 'PCT', 'CX']).default('UN'),
   estimated_unit_price: z.number().min(0, 'Preço não pode ser negativo').default(0),
   target_month: z.string().regex(/^\d{4}-\d{2}$/),
+  min_qty: z.number().min(0, 'Quantidade mínima não pode ser negativa').optional(),
 });
 
 export type AddShoppingItemInput = z.input<typeof AddShoppingItemSchema>;

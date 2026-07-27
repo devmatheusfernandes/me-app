@@ -17,19 +17,9 @@ export default async function ExtratoPage({ searchParams }: PageProps) {
   const targetMonth = params.month || getCurrentMonthYear();
 
   // Fetch all data for extrato
-  const [expenses, transactions, shoppingItems] = await Promise.all([
+  const [expenses, transactions] = await Promise.all([
     financeRepository.getFixedExpenses(user!.id, targetMonth),
     financeRepository.getTransactions(user!.id, targetMonth),
-    (async () => {
-      const { data } = await supabase
-        .from('shopping_list')
-        .select('*')
-        .eq('user_id', user!.id)
-        .eq('target_month', targetMonth)
-        .eq('status', 'Comprado')
-        .order('created_at', { ascending: false });
-      return data || [];
-    })(),
   ]);
 
   // Build unified extract entries
@@ -64,17 +54,24 @@ export default async function ExtratoPage({ searchParams }: PageProps) {
     });
 
   // Expense transactions (excluding meta allocations which we show separately)
+  const shoppingCategories = [
+    'Mercado', 'Mercearia', 'Frios e Laticínios', 'Carnes', 
+    'Higiene Pessoal', 'Utilidades', 'Hortifruti', 'Doces e Snacks', 
+    'Bebidas'
+  ];
+
   transactions
     .filter((t) => t.type === 'expense' && t.category !== 'Metas')
     .forEach((t) => {
+      const isShopping = shoppingCategories.includes(t.category || '');
       entries.push({
         id: t.id!,
         date: t.date || 1,
         name: t.name,
         category: t.category || 'Despesa',
         amount: Number(t.amount),
-        type: 'expense',
-        source: 'Financeiro',
+        type: isShopping ? 'shopping' : 'expense',
+        source: isShopping ? 'Compras' : 'Financeiro',
       });
     });
 
@@ -110,25 +107,7 @@ export default async function ExtratoPage({ searchParams }: PageProps) {
       });
     });
 
-  // Shopping items (bought)
-  shoppingItems.forEach((s: {
-    id: string;
-    name: string;
-    market_name?: string;
-    category?: string;
-    total_price?: number;
-    created_at?: string;
-  }) => {
-    entries.push({
-      id: s.id,
-      date: s.created_at ? new Date(s.created_at).getDate() : 1,
-      name: s.name,
-      category: s.category || 'Mercado',
-      amount: Number(s.total_price || 0),
-      type: 'shopping',
-      source: 'Compras',
-    });
-  });
+
 
   // Sort by date descending
   entries.sort((a, b) => b.date - a.date);

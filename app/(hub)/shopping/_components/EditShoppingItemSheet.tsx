@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { useForm } from 'react-hook-form';
+import { useForm, useWatch } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { EditShoppingItemSchema, type EditShoppingItemInput } from '@/modules/shopping/shopping.schema';
 import { editShoppingItemAction } from '@/modules/shopping/shopping.actions';
@@ -16,6 +16,7 @@ interface InventorySuggestion {
   name: string;
   category: string;
   unit: string;
+  min_qty?: number;
 }
 
 interface EditShoppingItemSheetProps {
@@ -39,7 +40,7 @@ export function EditShoppingItemSheet({
 
   const {
     register,
-    watch,
+    control,
     setValue,
     handleSubmit,
     reset,
@@ -74,22 +75,22 @@ export function EditShoppingItemSheet({
     }
   }, [item, isOpen, reset, availableMarkets]);
 
-  const nameValue = watch('name') || '';
-  const qty = watch('qty') || 0;
-  const unitPrice = watch('estimated_unit_price') || 0;
+  const nameValue = useWatch({ control, name: 'name', defaultValue: '' }) || '';
+  const qty = useWatch({ control, name: 'qty', defaultValue: 0 }) || 0;
+  const unitPrice = useWatch({ control, name: 'estimated_unit_price', defaultValue: 0 }) || 0;
   const totalCalculated = qty * unitPrice;
 
   // Debounced search for inventory suggestions
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
 
-    if (nameValue.length < 2) {
-      setSuggestions([]);
-      setShowSuggestions(false);
-      return;
-    }
-
     debounceRef.current = setTimeout(async () => {
+      if (nameValue.length < 2) {
+        setSuggestions([]);
+        setShowSuggestions(false);
+        return;
+      }
+
       try {
         const res = await searchInventoryItemsAction({ query: nameValue });
         if (res?.data?.items) {
@@ -108,8 +109,13 @@ export function EditShoppingItemSheet({
 
   const handleSelectSuggestion = (s: InventorySuggestion) => {
     setValue('name', s.name);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     setValue('category', (s.category || 'Mercearia') as any);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     setValue('unit', (s.unit || 'UN') as any);
+    if (s.min_qty !== undefined) {
+      setValue('min_qty', s.min_qty);
+    }
     setShowSuggestions(false);
     setSuggestions([]);
   };
@@ -230,7 +236,7 @@ export function EditShoppingItemSheet({
             </div>
           </div>
 
-          <div className="grid grid-cols-3 gap-2">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-2">
             <div>
               <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider">
                 Qtd
@@ -269,6 +275,19 @@ export function EditShoppingItemSheet({
                 placeholder="0.00"
                 {...register('estimated_unit_price', { valueAsNumber: true })}
                 className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-3 text-sm text-slate-200 focus:border-blue-500 focus:outline-none"
+              />
+            </div>
+
+            <div>
+              <label className="text-xs font-semibold text-slate-400 uppercase tracking-wider" title="Estoque mínimo desejado para sempre avisar quando faltar">
+                Mínimo
+              </label>
+              <input
+                type="number"
+                step="0.1"
+                placeholder="0"
+                {...register('min_qty', { valueAsNumber: true })}
+                className="w-full mt-1 bg-slate-950 border border-slate-800 rounded-xl px-3 py-3 text-sm text-slate-200 focus:border-blue-500 focus:outline-none text-center"
               />
             </div>
           </div>

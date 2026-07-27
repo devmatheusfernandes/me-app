@@ -108,12 +108,38 @@ export const shoppingService = {
 
   async addItem(userId: string, data: AddShoppingItemInput) {
     const totalPrice = Number(data.qty) * Number(data.estimated_unit_price || 0);
-    return shoppingRepository.create({
-      ...data,
+    const { min_qty, ...shoppingData } = data;
+    
+    const createdItem = await shoppingRepository.create({
+      ...shoppingData,
       user_id: userId,
       total_price: totalPrice,
       status: 'Pendente',
     });
+
+    if (min_qty !== undefined) {
+      const userInventory = await inventoryRepository.findAll(userId);
+      const existing = userInventory.find(
+        (inv) => inv.name.trim().toLowerCase() === createdItem.name.trim().toLowerCase()
+      );
+      if (existing) {
+        await inventoryRepository.updateMinQty(existing.id!, min_qty);
+      } else {
+        const newInv = await inventoryRepository.create({
+          user_id: userId,
+          name: createdItem.name,
+          category: (createdItem.category as Category) || 'Mercearia',
+          current_qty: 0,
+          min_qty: min_qty,
+          unit: (createdItem.unit as Unit) || 'UN',
+          last_updated: new Date().toISOString(),
+        });
+        const supabase = await (await import('@/lib/supabase/server')).createClient();
+        await supabase.from('shopping_list').update({ inventory_id: newInv.id }).eq('id', createdItem.id);
+      }
+    }
+
+    return createdItem;
   },
 
   async editItem(userId: string, data: EditShoppingItemInput) {
@@ -125,16 +151,42 @@ export const shoppingService = {
     const price = data.estimated_unit_price ?? item.estimated_unit_price ?? 0;
     const totalPrice = Number(qty) * Number(price);
 
-    return shoppingRepository.update(data.itemId, {
-      name: data.name,
-      market_name: data.market_name,
-      category: data.category as Category,
-      qty: data.qty,
-      unit: data.unit as Unit,
-      estimated_unit_price: data.estimated_unit_price,
+    const { min_qty, ...shoppingData } = data;
+
+    const updated = await shoppingRepository.update(data.itemId, {
+      name: shoppingData.name,
+      market_name: shoppingData.market_name,
+      category: shoppingData.category as Category,
+      qty: shoppingData.qty,
+      unit: shoppingData.unit as Unit,
+      estimated_unit_price: shoppingData.estimated_unit_price,
       total_price: totalPrice,
-      target_month: data.target_month,
+      target_month: shoppingData.target_month,
     });
+
+    if (min_qty !== undefined) {
+      const userInventory = await inventoryRepository.findAll(userId);
+      const existing = userInventory.find(
+        (inv) => inv.name.trim().toLowerCase() === updated.name.trim().toLowerCase()
+      );
+      if (existing) {
+        await inventoryRepository.updateMinQty(existing.id!, min_qty);
+      } else {
+        const newInv = await inventoryRepository.create({
+          user_id: userId,
+          name: updated.name,
+          category: (updated.category as Category) || 'Mercearia',
+          current_qty: 0,
+          min_qty: min_qty,
+          unit: (updated.unit as Unit) || 'UN',
+          last_updated: new Date().toISOString(),
+        });
+        const supabase = await (await import('@/lib/supabase/server')).createClient();
+        await supabase.from('shopping_list').update({ inventory_id: newInv.id }).eq('id', updated.id);
+      }
+    }
+
+    return updated;
   },
 
   /**
