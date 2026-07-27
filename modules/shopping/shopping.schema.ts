@@ -36,6 +36,7 @@ export const NfceItemSchema = z.object({
   unit: z.string(),
   unit_price: z.number(),
   total_price: z.number(),
+  min_qty: z.number().min(0).optional(),
 });
 export type NfceItem = z.infer<typeof NfceItemSchema>;
 

@@ -15,9 +15,12 @@ export const shoppingService = {
    * If item has inventory_id linked -> increment that item.
    * Else -> search inventory by name (case-insensitive). If found -> link and increment. If not -> create new item in inventory!
    */
-  async _addToInventory(userId: string, item: { id?: string; name: string; qty: number; unit: string; category?: string; inventory_id?: string | null }) {
+  async _addToInventory(userId: string, item: { id?: string; name: string; qty: number; unit: string; category?: string; inventory_id?: string | null }, minQty?: number) {
     if (item.inventory_id) {
       await inventoryRepository.incrementQuantity(item.inventory_id, item.qty);
+      if (minQty !== undefined) {
+        await inventoryRepository.updateMinQty(item.inventory_id, minQty);
+      }
       return;
     }
 
@@ -29,6 +32,9 @@ export const shoppingService = {
 
     if (existing) {
       await inventoryRepository.incrementQuantity(existing.id!, item.qty);
+      if (minQty !== undefined) {
+        await inventoryRepository.updateMinQty(existing.id!, minQty);
+      }
       if (item.id) {
         // link for future toggles
         const supabase = await (await import('@/lib/supabase/server')).createClient();
@@ -41,7 +47,7 @@ export const shoppingService = {
         name: item.name,
         category: (item.category as Category) || 'Mercearia',
         current_qty: item.qty,
-        min_qty: 1,
+        min_qty: minQty !== undefined ? minQty : 1,
         unit: (item.unit as Unit) || 'UN',
         last_updated: new Date().toISOString(),
       });
@@ -53,7 +59,7 @@ export const shoppingService = {
     }
   },
 
-  async markItemAsBought(userId: string, itemId: string, customDate?: number) {
+  async markItemAsBought(userId: string, itemId: string, customDate?: number, minQty?: number) {
     const item = await shoppingRepository.findById(itemId);
     if (!item) throw new Error('Item não encontrado');
     if (item.user_id !== userId) throw new Error('Sem permissão');
@@ -77,7 +83,7 @@ export const shoppingService = {
       await shoppingRepository.updateStatus(itemId, newStatus, expense.id);
 
       // Business Rule 2: Automatically add/increment to house inventory!
-      await this._addToInventory(userId, item);
+      await this._addToInventory(userId, item, minQty);
 
       return { newStatus, item };
     } else {
@@ -224,6 +230,7 @@ export const shoppingService = {
 
       const matchedIds: string[] = [];
       const unmatchedNfceItems: typeof items = [];
+      const matchedNfceItems: typeof items = [];
 
       for (const nfceItem of items) {
         const match = pendingItems.find(
@@ -231,14 +238,15 @@ export const shoppingService = {
         );
         if (match) {
           matchedIds.push(match.id!);
+          matchedNfceItems.push(nfceItem);
         } else {
           unmatchedNfceItems.push(nfceItem);
         }
       }
 
       // Mark matched items as bought (creates individual expenses + adds to inventory)
-      for (const id of matchedIds) {
-        await this.markItemAsBought(userId, id, transactionDate);
+      for (let i = 0; i < matchedIds.length; i++) {
+        await this.markItemAsBought(userId, matchedIds[i], transactionDate, matchedNfceItems[i].min_qty);
       }
 
       // Add unmatched items as new "Comprado" items with linked expenses + add to inventory
@@ -269,7 +277,7 @@ export const shoppingService = {
         });
 
         // Add to inventory
-        await this._addToInventory(userId, createdItem);
+        await this._addToInventory(userId, createdItem, nfceItem.min_qty);
       }
 
       return { matchedCount: matchedIds.length, addedCount: unmatchedNfceItems.length };
@@ -302,8 +310,8 @@ export const shoppingService = {
       const created = await shoppingRepository.bulkCreate(itemsToInsert);
 
       // Add all created items to inventory
-      for (const createdItem of created) {
-        await this._addToInventory(userId, createdItem);
+      for (let i = 0; i < created.length; i++) {
+        await this._addToInventory(userId, created[i], items[i].min_qty);
       }
 
       return { addedCount: created.length, matchedCount: 0 };

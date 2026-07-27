@@ -1,8 +1,8 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { ArrowLeft, Loader2, Link as LinkIcon, Search } from 'lucide-react';
+import { ArrowLeft, Loader2, Link as LinkIcon, Search, Camera } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { NfcePreview } from './NfcePreview';
 import { getCurrentMonthYear } from '@/lib/utils';
@@ -12,6 +12,7 @@ import type { NfceScrapedResult } from '@/app/api/scrape-nfce/route';
 export function NfcePageClient() {
   const searchParams = useSearchParams();
   const router = useRouter();
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const marketName = searchParams.get('market') || '';
   const targetMonth = searchParams.get('month') || getCurrentMonthYear();
@@ -47,6 +48,51 @@ export function NfcePageClient() {
     }
   }
 
+  const handleCameraClick = () => {
+    fileInputRef.current?.click();
+  };
+
+  const handleFileChange = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    setLoading(true);
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const base64 = reader.result as string;
+      try {
+        const res = await fetch('/api/scrape-nfce-image', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            image: base64,
+            mimeType: file.type || 'image/jpeg',
+          }),
+        });
+
+        const data = await res.json();
+        if (!res.ok) {
+          toast.error(data.error || 'Erro ao ler imagem da nota fiscal');
+          setLoading(false);
+          return;
+        }
+
+        setScraped(data as NfceScrapedResult);
+      } catch (err) {
+        toast.error('Erro de conexão ao processar imagem.');
+      } finally {
+        setLoading(false);
+      }
+    };
+
+    reader.onerror = () => {
+      toast.error('Erro ao ler o arquivo de imagem.');
+      setLoading(false);
+    };
+
+    reader.readAsDataURL(file);
+  };
+
   function handleFormSubmit(e: React.FormEvent) {
     e.preventDefault();
     processUrl(urlInput);
@@ -76,7 +122,7 @@ export function NfcePageClient() {
         {loading ? (
           <div className="flex flex-col items-center justify-center h-64 gap-4">
             <Loader2 size={36} className="animate-spin text-blue-400" />
-            <p className="text-slate-400 text-sm">Processando dados...</p>
+            <p className="text-slate-400 text-sm font-medium">Lendo dados com IA...</p>
           </div>
         ) : scraped ? (
           <NfcePreview
@@ -86,24 +132,46 @@ export function NfcePageClient() {
             withinMarketMode={withinMarketMode}
           />
         ) : (
-          <div className="flex flex-col items-center justify-center pt-16 pb-12 gap-6 text-center max-w-md mx-auto">
+          <div className="flex flex-col items-center justify-center pt-12 pb-12 gap-6 text-center max-w-md mx-auto">
             <div className="w-20 h-20 rounded-3xl bg-blue-500/10 flex items-center justify-center border border-blue-500/20 shadow-inner">
-              <LinkIcon size={36} className="text-blue-400" />
+              <Camera size={36} className="text-blue-400" />
             </div>
             <div>
               <h2 className="text-xl font-bold text-white mb-2">Importar NFC-e</h2>
               <p className="text-sm text-slate-400 leading-relaxed">
-                {withinMarketMode
-                  ? 'Cole o link da nota fiscal (NFC-e) no campo abaixo para comparar e atualizar seus itens da lista.'
-                  : 'Cole o link da nota fiscal eletrônica (NFC-e) no campo abaixo para importar todos os itens automaticamente.'}
+                Tire uma foto da nota fiscal física com o Gemini ou cole o link da nota eletrônica para importar todos os seus itens automaticamente.
               </p>
-              <p className="text-[10px] text-slate-500 mt-2 uppercase tracking-widest font-semibold">
+              <p className="text-[10px] text-slate-500 mt-2.5 uppercase tracking-widest font-semibold">
                 Suporte: SC, SP, PR, RS, MG, RJ, etc.
               </p>
             </div>
 
+            {/* Hidden Input for Camera/Upload */}
+            <input
+              type="file"
+              ref={fileInputRef}
+              onChange={handleFileChange}
+              accept="image/*"
+              className="hidden"
+            />
+
+            {/* Photo Trigger Button */}
+            <Button
+              onClick={handleCameraClick}
+              className="w-full bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-xl py-3.5 shadow-lg shadow-blue-600/20 active:scale-98 transition-all"
+            >
+              <Camera size={18} className="mr-2" />
+              Tirar Foto ou Upload da Nota
+            </Button>
+
+            <div className="flex items-center gap-3 w-full my-1.5">
+              <div className="h-px bg-slate-800 flex-1" />
+              <span className="text-[10px] font-bold text-slate-600 uppercase tracking-widest">ou cole o link</span>
+              <div className="h-px bg-slate-800 flex-1" />
+            </div>
+
             {/* URL Input Form */}
-            <form onSubmit={handleFormSubmit} className="w-full space-y-4 mt-2">
+            <form onSubmit={handleFormSubmit} className="w-full space-y-4">
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
                   <LinkIcon size={16} />
@@ -119,10 +187,11 @@ export function NfcePageClient() {
               <Button
                 type="submit"
                 disabled={!urlInput.trim()}
-                className="w-full bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-xl py-3.5 shadow-lg shadow-blue-600/20 active:scale-98 transition-all disabled:opacity-40 disabled:pointer-events-none"
+                variant="outline"
+                className="w-full border-slate-800 bg-slate-900/50 hover:bg-slate-800 text-slate-200 font-semibold rounded-xl py-3.5 text-sm disabled:opacity-40 disabled:pointer-events-none"
               >
                 <Search size={16} className="mr-2" />
-                Buscar Nota Fiscal
+                Buscar Nota por Link
               </Button>
             </form>
           </div>
