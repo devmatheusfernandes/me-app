@@ -4,6 +4,7 @@ import { protectedAction } from '@/lib/safe-action';
 import { shoppingService } from './shopping.service';
 import {
   AddShoppingItemSchema,
+  EditShoppingItemSchema,
   MarkBoughtSchema,
   PostponeItemSchema,
   AddBulkItemsFromNFCeSchema,
@@ -17,6 +18,15 @@ export const addShoppingItemAction = protectedAction
     revalidatePath('/shopping');
     revalidatePath('/dashboard');
     return { success: true, data: created };
+  });
+
+export const editShoppingItemAction = protectedAction
+  .schema(EditShoppingItemSchema)
+  .action(async ({ parsedInput, ctx }) => {
+    const updated = await shoppingService.editItem(ctx.user.id, parsedInput);
+    revalidatePath('/shopping');
+    revalidatePath('/dashboard');
+    return { success: true, data: updated };
   });
 
 export const markBoughtAction = protectedAction

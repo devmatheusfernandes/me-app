@@ -6,6 +6,7 @@ import { useRouter } from 'next/navigation';
 import { BudgetPanel } from './BudgetPanel';
 import { ShoppingItemCard } from './ShoppingItemCard';
 import { AddShoppingItemSheet } from './AddShoppingItemSheet';
+import { EditShoppingItemSheet } from './EditShoppingItemSheet';
 import { markBoughtAction, postponeItemAction } from '@/modules/shopping/shopping.actions';
 import { formatCurrency } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -31,6 +32,7 @@ export function ShoppingView({
   const router = useRouter();
   const [items, setItems] = useState<ShoppingItem[]>(initialItems);
   const [isAddOpen, setIsAddOpen] = useState(false);
+  const [editingItem, setEditingItem] = useState<ShoppingItem | null>(null);
 
   // Collapsible category state: key = "market::category"
   const [collapsedKeys, setCollapsedKeys] = useState<Record<string, boolean>>({});
@@ -105,6 +107,10 @@ export function ShoppingView({
 
   const handleItemAdded = (item: ShoppingItem) => {
     setItems((prev) => [...prev, item]);
+  };
+
+  const handleItemUpdated = (updatedItem: ShoppingItem) => {
+    setItems((prev) => prev.map((i) => (i.id === updatedItem.id ? updatedItem : i)));
   };
 
   const goToNfce = (marketName?: string) => {
@@ -222,6 +228,7 @@ export function ShoppingView({
                                 item={item}
                                 onToggleBought={handleToggleBought}
                                 onPostpone={handlePostpone}
+                                onEdit={(i) => setEditingItem(i)}
                               />
                             ))}
                           </div>
@@ -261,6 +268,17 @@ export function ShoppingView({
         availableMarkets={allMarkets}
         onItemAdded={handleItemAdded}
       />
+
+      {/* Edit Item Sheet Modal */}
+      {editingItem && (
+        <EditShoppingItemSheet
+          item={editingItem}
+          isOpen={!!editingItem}
+          onClose={() => setEditingItem(null)}
+          availableMarkets={allMarkets}
+          onItemUpdated={handleItemUpdated}
+        />
+      )}
     </div>
   );
 }

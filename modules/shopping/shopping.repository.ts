@@ -53,6 +53,19 @@ export const shoppingRepository = {
     return created;
   },
 
+  async update(id: string, data: Partial<ShoppingItem>): Promise<ShoppingItem> {
+    const supabase = await createClient();
+    const { data: updated, error } = await supabase
+      .from('shopping_list')
+      .update(data)
+      .eq('id', id)
+      .select()
+      .single();
+
+    if (error) throw new Error(`Erro ao atualizar item de compra: ${error.message}`);
+    return updated;
+  },
+
   async bulkCreate(items: Partial<ShoppingItem>[]): Promise<ShoppingItem[]> {
     const supabase = await createClient();
     const { data: created, error } = await supabase

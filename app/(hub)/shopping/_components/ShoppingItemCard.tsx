@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Check, MoreVertical, ShoppingBasket, CalendarClock } from 'lucide-react';
+import { Check, MoreVertical, ShoppingBasket, CalendarClock, Edit2 } from 'lucide-react';
 import { formatCurrency } from '@/lib/utils';
 import type { ShoppingItem } from '@/types';
 
@@ -9,12 +9,14 @@ interface ShoppingItemCardProps {
   item: ShoppingItem;
   onToggleBought: (id: string) => void;
   onPostpone: (id: string) => void;
+  onEdit: (item: ShoppingItem) => void;
 }
 
 export function ShoppingItemCard({
   item,
   onToggleBought,
   onPostpone,
+  onEdit,
 }: ShoppingItemCardProps) {
   const [menuOpen, setMenuOpen] = useState(false);
 
@@ -94,6 +96,20 @@ export function ShoppingItemCard({
                   {isBought ? 'Desmarcar' : 'Comprado'}
                 </p>
                 <p className="text-[10px] text-slate-500">Risca o item e atualiza o estoque</p>
+              </div>
+            </button>
+            <div className="h-px bg-slate-800" />
+            <button
+              onClick={() => {
+                setMenuOpen(false);
+                onEdit(item);
+              }}
+              className="w-full flex items-center gap-3 px-4 py-3.5 hover:bg-slate-800 transition-colors text-left"
+            >
+              <Edit2 size={16} className="text-blue-400" />
+              <div>
+                <p className="text-sm font-semibold text-slate-200">Editar</p>
+                <p className="text-[10px] text-slate-500">Altera as informações do item</p>
               </div>
             </button>
             <div className="h-px bg-slate-800" />

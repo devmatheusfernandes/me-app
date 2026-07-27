@@ -3,7 +3,7 @@ import { inventoryRepository } from '@/modules/inventory/inventory.repository';
 import { financeRepository } from '@/modules/finance/finance.repository';
 import { getCurrentMonthYear, getNextMonthYear } from '@/lib/utils';
 import type { Category, Unit } from '@/types';
-import type { AddShoppingItemInput, AddBulkItemsFromNFCeInput } from './shopping.schema';
+import type { AddShoppingItemInput, EditShoppingItemInput, AddBulkItemsFromNFCeInput } from './shopping.schema';
 
 export const shoppingService = {
   async getItemsByMonth(userId: string, targetMonth: string) {
@@ -113,6 +113,27 @@ export const shoppingService = {
       user_id: userId,
       total_price: totalPrice,
       status: 'Pendente',
+    });
+  },
+
+  async editItem(userId: string, data: EditShoppingItemInput) {
+    const item = await shoppingRepository.findById(data.itemId);
+    if (!item) throw new Error('Item não encontrado');
+    if (item.user_id !== userId) throw new Error('Sem permissão');
+
+    const qty = data.qty ?? item.qty;
+    const price = data.estimated_unit_price ?? item.estimated_unit_price ?? 0;
+    const totalPrice = Number(qty) * Number(price);
+
+    return shoppingRepository.update(data.itemId, {
+      name: data.name,
+      market_name: data.market_name,
+      category: data.category as Category,
+      qty: data.qty,
+      unit: data.unit as Unit,
+      estimated_unit_price: data.estimated_unit_price,
+      total_price: totalPrice,
+      target_month: data.target_month,
     });
   },
 

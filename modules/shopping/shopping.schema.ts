@@ -13,6 +13,12 @@ export const AddShoppingItemSchema = z.object({
 
 export type AddShoppingItemInput = z.input<typeof AddShoppingItemSchema>;
 
+export const EditShoppingItemSchema = AddShoppingItemSchema.extend({
+  itemId: z.string().uuid(),
+});
+
+export type EditShoppingItemInput = z.input<typeof EditShoppingItemSchema>;
+
 export const MarkBoughtSchema = z.object({
   itemId: z.string().uuid(),
 });
