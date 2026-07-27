@@ -1,14 +1,14 @@
 'use client';
 
 import { useState } from 'react';
-import { PlusCircle, MapPin, QrCode, ChevronDown, ChevronRight } from 'lucide-react';
+import { PlusCircle, MapPin, QrCode, ChevronDown, ChevronRight, Download } from 'lucide-react';
 import { useRouter } from 'next/navigation';
 import { BudgetPanel } from './BudgetPanel';
 import { ShoppingItemCard } from './ShoppingItemCard';
 import { AddShoppingItemSheet } from './AddShoppingItemSheet';
 import { EditShoppingItemSheet } from './EditShoppingItemSheet';
 import { markBoughtAction, postponeItemAction } from '@/modules/shopping/shopping.actions';
-import { formatCurrency } from '@/lib/utils';
+import { formatCurrency, downloadCsv } from '@/lib/utils';
 import { toast } from 'sonner';
 import type { ShoppingItem } from '@/types';
 
@@ -122,6 +122,38 @@ export function ShoppingView({
     router.push(`/shopping/nfce?${params.toString()}`);
   };
 
+  const handleExportExcel = () => {
+    if (activeItems.length === 0) {
+      toast.error('Nenhum item para exportar.');
+      return;
+    }
+
+    const headers = [
+      'Nome do Produto',
+      'Mercado',
+      'Categoria',
+      'Quantidade',
+      'Unidade',
+      'Preço Estimado Unitário (R$)',
+      'Preço Total (R$)',
+      'Status'
+    ];
+
+    const rows = activeItems.map(item => [
+      item.name,
+      item.market_name || 'Cooper A1',
+      item.category || 'Outros',
+      item.qty,
+      item.unit,
+      item.estimated_unit_price || 0,
+      item.total_price || (item.qty * (item.estimated_unit_price || 0)),
+      item.status
+    ]);
+
+    downloadCsv(headers, rows, `compras-${selectedMonth}`);
+    toast.success('Lista de compras exportada com sucesso!');
+  };
+
   return (
     <div className="p-4 pb-[160px] relative">
       {/* Dynamic Budget Panel */}
@@ -141,6 +173,13 @@ export function ShoppingView({
           title="Escanear Nota Fiscal"
         >
           <QrCode size={19} />
+        </button>
+        <button
+          onClick={handleExportExcel}
+          className="bg-slate-900/50 border border-slate-800 border-dashed rounded-2xl p-4 flex items-center justify-center gap-2 text-emerald-400 font-semibold hover:bg-slate-900 active:scale-[0.98] transition-all"
+          title="Exportar para Excel"
+        >
+          <Download size={19} />
         </button>
       </div>
 

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Plus, Search, AlertTriangle, ChevronDown, ChevronRight, ShoppingCart, X, Loader2, Barcode } from 'lucide-react';
+import { Plus, Search, AlertTriangle, ChevronDown, ChevronRight, ShoppingCart, X, Loader2, Barcode, Download } from 'lucide-react';
 import { InventoryItemCard } from './InventoryItemCard';
 import { LowStockDialog } from './LowStockDialog';
 import { AddInventorySheet } from './AddInventorySheet';
@@ -10,6 +10,7 @@ import { InventoryDetailSheet } from './InventoryDetailSheet';
 import { updateInventoryQtyAction } from '@/modules/inventory/inventory.actions';
 import { addToShoppingListFromInventoryAction } from '@/modules/inventory/inventory.actions';
 import { toast } from 'sonner';
+import { downloadCsv } from '@/lib/utils';
 import type { InventoryItem } from '@/types';
 
 interface AddToShoppingModalProps {
@@ -179,6 +180,32 @@ export function InventoryView({ initialItems, selectedMonth }: InventoryViewProp
     setItems((prev) => prev.filter((item) => item.id !== id));
   };
 
+  const handleExportExcel = () => {
+    if (items.length === 0) {
+      toast.error('Nenhum item no estoque para exportar.');
+      return;
+    }
+
+    const headers = [
+      'Nome do Produto',
+      'Categoria',
+      'Quantidade Atual',
+      'Unidade',
+      'Quantidade Mínima'
+    ];
+
+    const rows = items.map(item => [
+      item.name,
+      item.category || 'Outros',
+      item.current_qty || 0,
+      item.unit || 'UN',
+      item.min_qty || 0
+    ]);
+
+    downloadCsv(headers, rows, `estoque-${selectedMonth}`);
+    toast.success('Estoque exportado com sucesso!');
+  };
+
   return (
     <div className="p-5 pb-6">
       {/* Header */}
@@ -190,6 +217,13 @@ export function InventoryView({ initialItems, selectedMonth }: InventoryViewProp
           <h1 className="text-2xl font-bold text-slate-50">Estoque de Casa</h1>
         </div>
         <div className="flex gap-2">
+          <button
+            onClick={handleExportExcel}
+            className="bg-slate-900 p-2.5 rounded-xl border border-slate-800 text-emerald-400 active:scale-90 transition-all hover:text-emerald-300 animate-in fade-in-50 duration-200"
+            title="Exportar para Excel"
+          >
+            <Download size={20} />
+          </button>
           <button
             onClick={() => setShowBarcodeScanner(true)}
             className="bg-slate-900 p-2.5 rounded-xl border border-slate-800 text-slate-400 active:scale-90 transition-all hover:text-white"

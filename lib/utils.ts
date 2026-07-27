@@ -43,3 +43,35 @@ export function getPrevMonthYear(monthYear: string): string {
   const prevMonth = String(prevDate.getMonth() + 1).padStart(2, '0')
   return `${prevYear}-${prevMonth}`
 }
+
+export function downloadCsv(headers: string[], rows: any[][], filename: string) {
+  // UTF-8 BOM so Excel opens it with accents correctly
+  const BOM = '\uFEFF';
+  const csvContent = 
+    BOM +
+    [
+      headers.join(';'),
+      ...rows.map(row => 
+        row
+          .map(val => {
+            if (val === null || val === undefined) return '';
+            const strVal = String(val);
+            if (strVal.includes(';') || strVal.includes('\n') || strVal.includes('"')) {
+              return `"${strVal.replace(/"/g, '""')}"`;
+            }
+            return strVal;
+          })
+          .join(';')
+      )
+    ].join('\n');
+
+  const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const link = document.createElement('a');
+  link.setAttribute('href', url);
+  link.setAttribute('download', `${filename}.csv`);
+  link.style.visibility = 'hidden';
+  document.body.appendChild(link);
+  link.click();
+  document.body.removeChild(link);
+}
