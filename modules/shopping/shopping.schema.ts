@@ -44,6 +44,7 @@ export const AddBulkItemsFromNFCeSchema = z.object({
   market_name: z.string().min(1),
   target_month: z.string().regex(/^\d{4}-\d{2}$/),
   total_amount: z.number(),
+  note_date: z.string().optional(),
   /** If provided, we're operating within a specific existing market — only match/mark */
   within_market_mode: z.boolean().default(false),
 });

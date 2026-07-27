@@ -57,6 +57,7 @@ export function NfcePreview({
         market_name: marketNameOverride || scraped.market_name,
         target_month: targetMonth,
         total_amount: totalSelected,
+        note_date: scraped.note_date,
         within_market_mode: withinMarketMode,
       });
 

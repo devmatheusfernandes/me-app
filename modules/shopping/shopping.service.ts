@@ -53,7 +53,7 @@ export const shoppingService = {
     }
   },
 
-  async markItemAsBought(userId: string, itemId: string) {
+  async markItemAsBought(userId: string, itemId: string, customDate?: number) {
     const item = await shoppingRepository.findById(itemId);
     if (!item) throw new Error('Item não encontrado');
     if (item.user_id !== userId) throw new Error('Sem permissão');
@@ -71,6 +71,7 @@ export const shoppingService = {
         amount: totalPrice,
         reference_month: item.target_month,
         is_fixed: false,
+        date: customDate ?? 1,
       });
 
       await shoppingRepository.updateStatus(itemId, newStatus, expense.id);
@@ -195,8 +196,26 @@ export const shoppingService = {
    * - Within-market mode: match existing pending items by name, mark matched as bought.
    */
   async importFromNFCe(userId: string, input: AddBulkItemsFromNFCeInput) {
-    const { items, market_name, target_month, total_amount, within_market_mode } = input;
-    const targetMonth = target_month || getCurrentMonthYear();
+    const { items, market_name, target_month, total_amount, within_market_mode, note_date } = input;
+    let targetMonth = target_month || getCurrentMonthYear();
+    let transactionDate = 1;
+
+    if (note_date) {
+      const parts = note_date.split('/');
+      if (parts.length === 3) {
+        const day = parseInt(parts[0], 10);
+        const month = parts[1];
+        const year = parts[2];
+        if (!isNaN(day) && day >= 1 && day <= 31) {
+          transactionDate = day;
+        }
+        // Use the month/year of the receipt as the reference month,
+        // unless the user specified a target month.
+        if (!target_month) {
+          targetMonth = `${year}-${month}`;
+        }
+      }
+    }
 
     if (within_market_mode) {
       // Match existing pending items in this market by name (fuzzy: includes)
@@ -219,7 +238,7 @@ export const shoppingService = {
 
       // Mark matched items as bought (creates individual expenses + adds to inventory)
       for (const id of matchedIds) {
-        await this.markItemAsBought(userId, id);
+        await this.markItemAsBought(userId, id, transactionDate);
       }
 
       // Add unmatched items as new "Comprado" items with linked expenses + add to inventory
@@ -232,6 +251,7 @@ export const shoppingService = {
           amount: nfceItem.total_price,
           reference_month: targetMonth,
           is_fixed: false,
+          date: transactionDate,
         });
 
         const createdItem = await shoppingRepository.create({
@@ -263,6 +283,7 @@ export const shoppingService = {
         amount: total_amount,
         reference_month: targetMonth,
         is_fixed: false,
+        date: transactionDate,
       });
 
       const itemsToInsert = items.map((nfceItem) => ({

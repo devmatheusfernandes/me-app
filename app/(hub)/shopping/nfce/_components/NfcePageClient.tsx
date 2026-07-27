@@ -2,9 +2,8 @@
 
 import { useState } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
-import { ArrowLeft, QrCode, Loader2, Link as LinkIcon, Search, AlignLeft } from 'lucide-react';
+import { ArrowLeft, Loader2, Link as LinkIcon, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
-import { QrScanner } from '@/components/qr/QrScanner';
 import { NfcePreview } from './NfcePreview';
 import { getCurrentMonthYear } from '@/lib/utils';
 import { toast } from 'sonner';
@@ -18,7 +17,6 @@ export function NfcePageClient() {
   const targetMonth = searchParams.get('month') || getCurrentMonthYear();
   const withinMarketMode = searchParams.get('mode') === 'market';
 
-  const [showScanner, setShowScanner] = useState(false);
   const [loading, setLoading] = useState(false);
   const [urlInput, setUrlInput] = useState('');
   const [scraped, setScraped] = useState<NfceScrapedResult | null>(null);
@@ -28,7 +26,6 @@ export function NfcePageClient() {
       toast.error('Informe uma URL válida');
       return;
     }
-    setShowScanner(false);
     setLoading(true);
     try {
       const res = await fetch('/api/scrape-nfce', {
@@ -53,15 +50,6 @@ export function NfcePageClient() {
   function handleFormSubmit(e: React.FormEvent) {
     e.preventDefault();
     processUrl(urlInput);
-  }
-
-  if (showScanner) {
-    return (
-      <QrScanner
-        onCancel={() => setShowScanner(false)}
-        onDecoded={(decodedUrl) => processUrl(decodedUrl)}
-      />
-    );
   }
 
   return (
@@ -98,37 +86,24 @@ export function NfcePageClient() {
             withinMarketMode={withinMarketMode}
           />
         ) : (
-          <div className="flex flex-col items-center justify-center pt-8 pb-12 gap-6 text-center max-w-md mx-auto">
-            <div className="w-20 h-20 rounded-3xl bg-blue-500/10 flex items-center justify-center">
-              <QrCode size={40} className="text-blue-400" />
+          <div className="flex flex-col items-center justify-center pt-16 pb-12 gap-6 text-center max-w-md mx-auto">
+            <div className="w-20 h-20 rounded-3xl bg-blue-500/10 flex items-center justify-center border border-blue-500/20 shadow-inner">
+              <LinkIcon size={36} className="text-blue-400" />
             </div>
             <div>
-              <h2 className="text-lg font-semibold text-white mb-1">Importar NFC-e</h2>
+              <h2 className="text-xl font-bold text-white mb-2">Importar NFC-e</h2>
               <p className="text-sm text-slate-400 leading-relaxed">
                 {withinMarketMode
-                  ? 'Escaneie o QR Code, cole o link ou o texto copiado da nota fiscal para comparar com sua lista.'
-                  : 'Escaneie o QR Code, cole o link ou o texto copiado da nota fiscal eletrônica para importar os itens.'}
+                  ? 'Cole o link da nota fiscal (NFC-e) no campo abaixo para comparar e atualizar seus itens da lista.'
+                  : 'Cole o link da nota fiscal eletrônica (NFC-e) no campo abaixo para importar todos os itens automaticamente.'}
               </p>
-              <p className="text-[10px] text-slate-600 mt-1.5 uppercase tracking-widest font-bold">Suporte: SC, SP, PR, RS, MG, RJ, etc.</p>
-            </div>
-
-            {/* QR Code Scan Button */}
-            <Button
-              onClick={() => setShowScanner(true)}
-              className="w-full bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-xl py-3.5 shadow-lg shadow-blue-600/20 active:scale-98 transition-all"
-            >
-              <QrCode size={18} className="mr-2" />
-              Abrir Câmera / Escanear QR Code
-            </Button>
-
-            <div className="flex items-center gap-3 w-full my-1">
-              <div className="h-px bg-slate-800 flex-1" />
-              <span className="text-[10px] font-bold text-slate-600 uppercase tracking-widest">ou cole o link</span>
-              <div className="h-px bg-slate-800 flex-1" />
+              <p className="text-[10px] text-slate-500 mt-2 uppercase tracking-widest font-semibold">
+                Suporte: SC, SP, PR, RS, MG, RJ, etc.
+              </p>
             </div>
 
             {/* URL Input Form */}
-            <form onSubmit={handleFormSubmit} className="w-full space-y-3">
+            <form onSubmit={handleFormSubmit} className="w-full space-y-4 mt-2">
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3.5 flex items-center pointer-events-none text-slate-500">
                   <LinkIcon size={16} />
@@ -138,17 +113,16 @@ export function NfcePageClient() {
                   value={urlInput}
                   onChange={(e) => setUrlInput(e.target.value)}
                   placeholder="https://sat.sef.sc.gov.br/..."
-                  className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-10 pr-4 py-3.5 text-xs text-white placeholder:text-slate-600 focus:outline-none focus:border-blue-500 transition-colors"
+                  className="w-full bg-slate-900 border border-slate-800 rounded-xl pl-10 pr-4 py-3.5 text-sm text-white placeholder:text-slate-600 focus:outline-none focus:border-blue-500 focus:ring-1 focus:ring-blue-500 transition-all"
                 />
               </div>
               <Button
                 type="submit"
                 disabled={!urlInput.trim()}
-                variant="outline"
-                className="w-full border-slate-800 bg-slate-900/50 hover:bg-slate-800 text-slate-200 font-semibold rounded-xl py-3.5 text-xs disabled:opacity-40"
+                className="w-full bg-blue-600 hover:bg-blue-500 text-white font-semibold rounded-xl py-3.5 shadow-lg shadow-blue-600/20 active:scale-98 transition-all disabled:opacity-40 disabled:pointer-events-none"
               >
-                <Search size={14} className="mr-2" />
-                Buscar Nota por Link
+                <Search size={16} className="mr-2" />
+                Buscar Nota Fiscal
               </Button>
             </form>
           </div>

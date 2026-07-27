@@ -249,6 +249,54 @@ function scrapeHtml(html: string): NfceScrapedItem[] {
   return items;
 }
 
+function extractTotalAmount(html: string, $: ReturnType<typeof cheerio.load>, fallbackItemsSum: number): number {
+  // 1. Try direct txtMax class (common in SC and generic layouts)
+  const txtMaxVal = parseDecimalBR($('.txtMax').first().text());
+  if (txtMaxVal > 0) return txtMaxVal;
+
+  // 2. Look for label with text containing "valor a pagar", "total a pagar", "valor pago"
+  let total = 0;
+  $('label, span, td').each((_, el) => {
+    const text = $(el).text().trim().toLowerCase();
+    if (
+      text === 'valor a pagar r$:' ||
+      text === 'valor a pagar:' ||
+      text === 'total a pagar:' ||
+      text === 'total a pagar r$:' ||
+      text.includes('valor a pagar') ||
+      text.includes('total a pagar') ||
+      text.includes('valor pago')
+    ) {
+      // Try next element or sibling
+      const siblingText = $(el).next().text().trim();
+      const val = parseDecimalBR(siblingText);
+      if (val > 0) {
+        total = val;
+        return false; // break
+      }
+
+      // Try finding within the parent (only if parent is small/specific, not body or form)
+      const parent = $(el).parent();
+      if (
+        parent.length &&
+        parent[0].tagName.toLowerCase() !== 'body' &&
+        parent[0].tagName.toLowerCase() !== 'form'
+      ) {
+        const parentValText = parent.find('.totalNumb, .value, td, span').not(el).first().text().trim();
+        const parentVal = parseDecimalBR(parentValText);
+        if (parentVal > 0) {
+          total = parentVal;
+          return false; // break
+        }
+      }
+    }
+  });
+
+  if (total > 0) return total;
+
+  return fallbackItemsSum;
+}
+
 function extractMetadata(html: string, $: ReturnType<typeof cheerio.load>) {
   let marketName =
     $('#u20, .txtTopo, .NomeEmitente, .razaoSocial, h1, #lblRazaoSocial, #lblNomeFantasia, .estabelecimento, [class*="razao"], [class*="emitente"]')
@@ -341,7 +389,24 @@ export async function POST(req: NextRequest) {
     }
 
     const { marketName, cnpj, note_date } = extractMetadata(html, $);
-    const total_amount = items.reduce((s, i) => s + i.total_price, 0);
+    const itemsSum = items.reduce((s, i) => s + i.total_price, 0);
+    const total_amount = extractTotalAmount(html, $, itemsSum);
+
+    // Apply discount proportionally if total_amount differs from the items' sum
+    if (total_amount > 0 && items.length > 0 && Math.abs(total_amount - itemsSum) > 0.01) {
+      const discountFactor = total_amount / itemsSum;
+      let currentSum = 0;
+      items.forEach((item, idx) => {
+        if (idx === items.length - 1) {
+          // Adjust last item to absorb rounding difference
+          item.total_price = Number((total_amount - currentSum).toFixed(2));
+        } else {
+          item.total_price = Number((item.total_price * discountFactor).toFixed(2));
+          currentSum += item.total_price;
+        }
+        item.unit_price = Number((item.total_price / item.qty).toFixed(2));
+      });
+    }
 
     if (items.length === 0) {
       // Provide helpful error with debug info
